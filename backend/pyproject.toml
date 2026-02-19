@@ -29,4 +29,5 @@ dependencies = [
     "langchain-postgres>=0.0.17",
     "psycopg[binary,pool]>=3.2.13",
     "pgvector>=0.3.6",
+    "gunicorn>=23.0.0",
 ]

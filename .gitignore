@@ -44,6 +44,7 @@ __pycache__/
 build/
 wheels/
 *.egg-info
+Backend/uploads/*
 
 # Virtual environments
 .venv
@@ -56,3 +57,5 @@ env
 # --- Nginx ---
 nginx/logs/*.log
 nginx/temp/*
+nginx/certs/*
+
