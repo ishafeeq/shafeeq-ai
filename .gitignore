@@ -8,6 +8,7 @@
 *.njsproj
 *.sln
 *.sw?
+*.db
 
 # --- Frontend (Node/React) ---
 # Logs

@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+html, body {
+  height: 100%;
+  width: 100%;
+  background: #09090b;
+  color: #fff;
+  font-family: 'Inter', 'SF Pro Display', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Do NOT set overflow:hidden here — it clips the footer on Android */
+}
+
+#root {
+  height: 100dvh;   /* dynamic viewport height — accounts for Android nav bar */
+  width: 100%;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+button { user-select: none; -webkit-user-select: none; cursor: pointer; }
+button:focus-visible { outline: 2px solid rgba(59,130,246,0.5); outline-offset: 2px; }
