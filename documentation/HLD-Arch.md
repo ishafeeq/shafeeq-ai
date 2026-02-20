@@ -339,7 +339,7 @@ Same pipeline as above but skips step 1–2; user text is passed directly. TTS a
 
 ---
 
-## 7. Startup Script (`run_stack.sh`)
+## 7. Startup Script (`deploy_dev.sh`)
 
 Orchestrates all components for local development:
 1. Ensures PostgreSQL is running with pgvector extension enabled

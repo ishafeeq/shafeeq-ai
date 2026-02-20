@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: bol-ai-postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: jeetu
+    # Host port mapping allows local development tools to still access the DB
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U user -d jeetu" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bol-ai-backend
+    environment:
+      # Use internal Docker DNS 'postgres' to connect to DB
+      - DATABASE_URL=postgresql://user:password@postgres:5432/jeetu
+    env_file:
+      # Inject secret API keys from the host's .env file
+      - ./backend/.env
+    volumes:
+      # Shared volume for audio uploads
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9101:8000"
+    # Wait for DB, initialize schema, then start Gunicorn
+    command: >
+      bash -c "python -m src.init_db && gunicorn src.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bol-ai-frontend
+    ports:
+      # The application will be accessible at http://localhost:9100
+      - "9100:80"
+    depends_on:
+      - backend
+    volumes:
+      # Read-only access to audio uploads for Nginx to serve
+      - uploads_data:/app/uploads:ro
+
+volumes:
+  pgdata:
+  uploads_data:

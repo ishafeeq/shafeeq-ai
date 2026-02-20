@@ -29,6 +29,13 @@ trap cleanup SIGINT EXIT
 
 echo "Starting Bol AI in PRODUCTION mode..."
 
+# Pre-flight cleanup
+echo "[Setup] Performing pre-flight cleanup..."
+kill_port 8000
+kill_port 5173
+kill_port 8080
+kill_port 8443
+
 # 0. Pre-flight Checks -> SSL Certs
 echo "[Setup] Checking SSL certificates..."
 mkdir -p nginx/certs
@@ -41,6 +48,56 @@ if [ ! -f "nginx/certs/selfsigned.crt" ] || [ ! -f "nginx/certs/selfsigned.key" 
     echo "Certificate generated."
 else
     echo "SSL certificates found."
+fi
+
+# Check/Start Docker Postgres
+if command -v docker &> /dev/null; then
+    # Check if Docker daemon is running
+    if ! docker info > /dev/null 2>&1; then
+        echo "Error: Docker daemon is not running. Please start Docker (or Colima) and try again."
+        exit 1
+    fi
+
+    if ! docker ps | grep -q "jeetu-postgres"; then
+        echo "Starting Postgres container..."
+        docker start jeetu-postgres 2>/dev/null || \
+        docker run --name jeetu-postgres -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_DB=jeetu -p 5433:5432 -d pgvector/pgvector:pg16
+        
+        echo "Waiting for Postgres to be ready..."
+        sleep 4
+        # Enable pgvector extension
+        docker exec jeetu-postgres psql -U user -d jeetu -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
+    else
+        echo "Postgres container is running."
+        # Ensure extension is enabled (idempotent)
+        docker exec jeetu-postgres psql -U user -d jeetu -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
+    fi
+fi
+
+# Check for --init-db flag
+if [[ "$1" == "--init-db" ]]; then
+    echo "Initializing Database..."
+    cd backend
+    
+    # Try uv first, if it fails, try manual venv
+    if command -v uv &> /dev/null && uv run python -m src.init_db; then
+        echo "Database initialized via uv."
+    elif [ -d "venv" ] || [ -d ".venv" ]; then
+        echo "uv failed or not found. Trying manual venv..."
+        if [ -d ".venv" ]; then source .venv/bin/activate; else source venv/bin/activate; fi
+        python3 -m src.init_db
+    else
+        echo "Fall back to system python..."
+        python3 -m src.init_db
+    fi
+    
+    if [ $? -ne 0 ]; then
+        echo "Error: Database initialization failed!"
+        exit 1
+    fi
+    
+    cd ..
+    echo "Database initialized."
 fi
 
 # 1. Start Backend (Gunicorn + Uvicorn Workers)
@@ -66,7 +123,7 @@ if command -v uv &> /dev/null; then
 else
     # Fallback to pip/venv
     if [ ! -d ".venv" ] && [ ! -d "venv" ]; then
-        echo "Virtual environment not found! Run ./run_stack.sh first to set up dev env."
+        echo "Virtual environment not found! Run ./deploy_dev.sh first to set up dev env."
         exit 1
     fi
     # Activate venv
@@ -152,7 +209,7 @@ http {
         # 2. Proxy API to Backend
         location /api/ {
             proxy_pass http://127.0.0.1:8000/;  # Gunicorn port (trailing slash needed to strip /api prefix?)
-            # Wait, FastAPI strips /api automatically? No, in run_stack.sh /api mounts to /
+            # Wait, FastAPI strips /api automatically? No, in deploy_dev.sh /api mounts to /
             # If backend is on 8000/, then http://127.0.0.1:8000/users/me works.
             # If request is /api/users/me, proxy_pass http://127.0.0.1:8000/ will map to /users/me nicely.
             

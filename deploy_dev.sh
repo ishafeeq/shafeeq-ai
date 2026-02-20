@@ -57,7 +57,7 @@ if command -v docker &> /dev/null; then
     if ! docker ps | grep -q "jeetu-postgres"; then
         echo "Starting Postgres container..."
         docker start jeetu-postgres 2>/dev/null || \
-        docker run --name jeetu-postgres -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_DB=jeetu -p 5432:5432 -d pgvector/pgvector:pg16
+        docker run --name jeetu-postgres -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_DB=jeetu -p 5433:5432 -d pgvector/pgvector:pg16
         
         echo "Waiting for Postgres to be ready..."
         sleep 4

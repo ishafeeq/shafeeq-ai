@@ -8,7 +8,7 @@ Usage:
     UV_CACHE_DIR=/tmp/uv-cache uv run python ingest.py [--folder ../projects]
 
 Prerequisites:
-    1. pgvector extension enabled in Postgres (run_stack.sh does this automatically)
+    1. pgvector extension enabled in Postgres (deploy_dev.sh does this automatically)
     2. Ollama running with mxbai-embed-large pulled:
        ollama pull mxbai-embed-large
 """

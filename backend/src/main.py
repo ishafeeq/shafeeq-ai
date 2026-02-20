@@ -9,7 +9,7 @@ load_dotenv()
 from . import models
 from .database import engine
 
-models.Base.metadata.create_all(bind=engine)
+# schema generation moved to init_db.py to prevent multi-worker race conditions
 
 from .routes import auth
 
