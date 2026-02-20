@@ -28,8 +28,8 @@ A Hinglish voice assistant (Web Stack) capable of real-time search, RAG, and con
 │   ├── HLD-Arch.md        # High-Level Design
 │   └── LLD.md             # Low-Level Design
 │
-├── run_stack.sh           # Development startup script
-└── run_prod.sh            # Production startup script
+├── deploy_dev.sh           # Development startup script
+└── deploy_prod.sh            # Production startup script
 ```
 
 ## 🚀 Getting Started
@@ -53,15 +53,15 @@ SECRET_KEY=your_secret_key
 ### 2. Run in Development Mode
 Starts FastAPI (reload), Vite (HMR), and Nginx (HTTPS proxy).
 ```bash
-./run_stack.sh --init-db  # First run only (inits DB)
-./run_stack.sh            # Normal run
+./deploy_dev.sh --init-db  # First run only (inits DB)
+./deploy_dev.sh            # Normal run
 ```
 **Access:** [https://localhost:8443](https://localhost:8443)
 
 ### 3. Run in Production Mode
 Builds frontend, starts Gunicorn (multi-worker), serving static files via Nginx.
 ```bash
-./run_prod.sh
+./deploy_prod.sh
 ```
 
 ## 🛠 Features
