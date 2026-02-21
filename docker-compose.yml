@@ -1,13 +1,20 @@
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: bol-ai-postgres
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: jeetu
+      POSTGRES_USER_FILE: /run/secrets/bol_postgres_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/bol_postgres_pass
+      POSTGRES_DB_FILE: /run/secrets/bol_postgres_db
+    secrets:
+      - bol_postgres_user
+      - bol_postgres_pass
+      - bol_postgres_db
     # Host port mapping allows local development tools to still access the DB
     ports:
       - "5433:5432"
@@ -24,12 +31,22 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: bol-ai-backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
     environment:
-      # Use internal Docker DNS 'postgres' to connect to DB
-      - DATABASE_URL=postgresql://user:password@postgres:5432/jeetu
-    env_file:
-      # Inject secret API keys from the host's .env file
-      - ./backend/.env
+      - OLLAMA_BASE_URL=http://localhost:11434
+      - GROQ_GUARDRAIL_MODEL=openai/gpt-oss-20b
+      - GROQ_SYNTHESIZER_MODEL=openai/gpt-oss-120b
+    secrets:
+      - bol_sarvam_key
+      - bol_tavily_key
+      - bol_groq_key
+      - bol_postgres_user
+      - bol_postgres_pass
+      - bol_postgres_db
     volumes:
       # Shared volume for audio uploads
       - uploads_data:/app/uploads
@@ -40,13 +57,18 @@ services:
       - "9101:8000"
     # Wait for DB, initialize schema, then start Gunicorn
     command: >
-      bash -c "python -m src.init_db && gunicorn src.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
+      bash -c " export SARVAM_API_KEY=\$$(cat /run/secrets/bol_sarvam_key); export TAVILY_API_KEY=\$$(cat /run/secrets/bol_tavily_key); export GROQ_API_KEY=\$$(cat /run/secrets/bol_groq_key); export POSTGRES_USER=\$$(cat /run/secrets/bol_postgres_user); export POSTGRES_PASSWORD=\$$(cat /run/secrets/bol_postgres_pass); export POSTGRES_DB=\$$(cat /run/secrets/bol_postgres_db); export DATABASE_URL=\"postgresql://\$${POSTGRES_USER}:\$${POSTGRES_PASSWORD}@postgres:5432/\$${POSTGRES_DB}\"; python -m src.init_db && gunicorn src.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: bol-ai-frontend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
     ports:
       # The application will be accessible at http://localhost:9100
       - "9100:80"
@@ -59,3 +81,18 @@ services:
 volumes:
   pgdata:
   uploads_data:
+
+
+secrets:
+  bol_postgres_user:
+    file: ../secrets/bol_postgres_user.txt
+  bol_postgres_pass:
+    file: ../secrets/bol_postgres_pass.txt
+  bol_postgres_db:
+    file: ../secrets/bol_postgres_db.txt
+  bol_sarvam_key:
+    file: ../secrets/bol_sarvam_key.txt
+  bol_tavily_key:
+    file: ../secrets/bol_tavily_key.txt
+  bol_groq_key:
+    file: ../secrets/bol_groq_key.txt

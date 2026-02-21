@@ -14,6 +14,12 @@ RUN npm run build
 # Stage 2: Serve with Nginx Reverse Proxy
 FROM nginx:alpine
 
+# Create nginx cache directories and set permissions to allow temporary audio data uploads
+RUN mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp \
+    /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp /var/cache/nginx/scgi_temp && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chmod -R 777 /var/cache/nginx
+
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
 
