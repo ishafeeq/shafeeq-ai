@@ -6,6 +6,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Strict Environment Variable Validation
+REQUIRED_ENV_VARS = [
+    "DATABASE_URL", 
+    "SECRET_KEY", 
+    "SARVAM_API_KEY", 
+    "OLLAMA_BASE_URL", 
+    "TAVILY_API_KEY", 
+    "GROQ_API_KEY",
+    "OTP_AUTH_KEY"
+]
+
+for var in REQUIRED_ENV_VARS:
+    if not os.environ.get(var):
+        raise ValueError(f"CRITICAL: {var} environment variable is missing or empty! Startup aborted.")
+
 from . import models
 from .database import engine
 
@@ -13,7 +28,7 @@ from .database import engine
 
 from .routes import auth
 
-app = FastAPI(title="Jeetu Code Assistant Backend")
+app = FastAPI(title="Bol-AI SAI Backend")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

@@ -1,34 +1,12 @@
-from sarvamai import SarvamAI
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
-
 import logging
+import os
+from sarvamai import SarvamAI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-def _convert_to_wav(audio_path: str) -> str:
-    """Convert webm/other formats to wav. Returns path to wav file."""
-    if not audio_path.endswith('.webm'):
-        return audio_path
-    import subprocess
-    wav_path = audio_path.replace('.webm', '.wav')
-    try:
-        subprocess.run(
-            ['ffmpeg', '-i', audio_path, '-ar', '16000', '-ac', '1', '-y', wav_path],
-            check=True, capture_output=True
-        )
-        logger.info(f"Converted {audio_path} → {wav_path}")
-        return wav_path
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        logger.error(f"FFmpeg conversion failed: {e}")
-        return audio_path  # fallback to original
+SARVAM_API_KEY = os.environ["SARVAM_API_KEY"]
 
 
 def transcribe(audio_path: str, language_code: str = "hi-IN") -> dict:
@@ -47,17 +25,11 @@ def transcribe(audio_path: str, language_code: str = "hi-IN") -> dict:
 
     language_code: 'hi-IN' for Hindi, 'unknown' to auto-detect
     """
-    if not SARVAM_API_KEY:
-        logger.error("SARVAM_API_KEY not found in environment variables.")
-        raise ValueError("SARVAM_API_KEY not found in environment variables.")
-
     if not os.path.exists(audio_path):
         logger.error(f"Audio file not found: {audio_path}")
         return {"translated_text": "", "translit_text": ""}
 
-    # Convert format if needed
-    audio_path = _convert_to_wav(audio_path)
-
+    # Main application logic validates the API Key at startup
     client = SarvamAI(api_subscription_key=SARVAM_API_KEY)
     result = {"translated_text": "", "translit_text": ""}
 

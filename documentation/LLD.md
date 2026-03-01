@@ -142,7 +142,6 @@ This follows the **Inversion of Control** principle — routes declare what they
 **Where:** `stt_handler.py`
 
 `stt_handler.transcribe()` hides the complexity of:
-- Audio format conversion (`ffmpeg` subprocess for `.webm` → `.wav`)
 - Two separate API calls to Sarvam (translate + translit modes)
 - Error handling and fallback logic
 

@@ -38,7 +38,6 @@ A Hinglish voice assistant (Web Stack) capable of real-time search, RAG, and con
 - Python 3.11+
 - Node.js 18+
 - Docker (for Postgres + pgvector)
-- `ffmpeg` (for audio conversion)
 
 ### 1. Setup Environment
 Create a `.env` file in `backend/.env`:
@@ -48,6 +47,7 @@ SARVAM_API_KEY=...
 TAVILY_API_KEY=tvly-...
 DATABASE_URL=postgresql://user:password@localhost/jeetu
 SECRET_KEY=your_secret_key
+OTP_AUTH_KEY=your_otp_key
 ```
 
 ### 2. Run in Development Mode

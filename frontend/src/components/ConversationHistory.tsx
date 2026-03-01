@@ -30,8 +30,8 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 pb-32">
-        <p className="text-zinc-500 text-sm max-w-xs text-center leading-relaxed">
-          Press the mic button below and speak in Hindi, English, or Hinglish
+        <p className="text-zinc-500 text-sm max-w-sm text-center leading-relaxed">
+          Main Nisha hoon, aapki AI dost. Hindi ho ya English, mujhse aap apni natural language mein baat kar sakte hain. Bas mic button daba ke rakhiye aur boliye!
         </p>
         <div className="flex flex-wrap gap-2 justify-center">
           {['🎙️ Hinglish', '🔍 Web Search', '🧠 RAG', '🔊 Voice Reply'].map((f) => (
@@ -123,8 +123,8 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
                 </p>
               )}
 
-              {/* Audio play button for assistant */}
-              {!isUser && msg.audio_url && (
+              {/* Audio play button for assistant and user */}
+              {msg.audio_url && (
                 <button
                   onClick={() => onPlayAudio(msg.audio_url!, msg.id)}
                   className="mt-2.5 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all duration-200"

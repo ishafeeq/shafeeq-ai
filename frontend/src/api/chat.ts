@@ -6,6 +6,7 @@ export interface Message {
     content: string;          // English translated text (stored in DB)
     translit_text?: string;   // Hinglish — shown as main text in UI (voice messages only)
     audio_url?: string;
+    intermediate_audio_url?: string;
     created_at: string;
 }
 
@@ -13,6 +14,7 @@ export interface Conversation {
     id: number;
     title: string;
     messages: Message[];
+    created_at: string;
 }
 
 export interface AudioResponse {
@@ -23,6 +25,11 @@ export interface AudioResponse {
 export const chatApi = {
     createConversation: async (title: string = "New Chat") => {
         const response = await client.post<Conversation>('/conversations', { title });
+        return response.data;
+    },
+
+    getConversations: async (skip: number = 0, limit: number = 100) => {
+        const response = await client.get<Conversation[]>(`/conversations?skip=${skip}&limit=${limit}`);
         return response.data;
     },
 
@@ -42,11 +49,12 @@ export const chatApi = {
         return response.data;
     },
 
-    transcribeAudio: async (audioBlob: Blob, language: string = 'hi-IN') => {
+    transcribeAudio: async (audioBlob: Blob, duration: number, language: string = 'hi-IN') => {
         const formData = new FormData();
-        formData.append('file', audioBlob, 'recording.wav');
+        formData.append('file', audioBlob, 'recording.webm');
         formData.append('language', language);
-        const response = await client.post<{ text: string, translit_text: string, audio_url: string }>('/chat/transcribe', formData, {
+        formData.append('duration', duration.toString());
+        const response = await client.post<{ text: string, translit_text: string, audio_url: string, intermediate_audio_url?: string }>('/chat/transcribe', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;

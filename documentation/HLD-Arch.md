@@ -40,9 +40,8 @@ FastAPI      Vite Dev Server
    ├── GET  /users/me           Auth
    ├── GET  /conversations      History
    ├── POST /conversations      History
-   ├── POST /chat/transcribe    STT only
-   ├── POST /chat/text          Text → AI → optional TTS
-   ├── POST /chat/audio         Audio full round-trip
+   ├── POST /chat/transcribe    STT (Speech-to-Text) + Pre-balance check + Initial Ack Audio
+   ├── POST /chat/text          LangGraph AI Inference + Optional TTS (Text-to-Speech)
    └── GET  /uploads/*          Static audio files
          │
          ▼
@@ -312,16 +311,28 @@ Ingest is a CLI script run manually before deploying; re-runs do a full refresh 
 
 ---
 
-## 6. Chat Flow — End-to-End
+## 6. Chat Flow — End-to-End (Split Pipeline)
 
-### Audio Round-Trip (`POST /chat/audio`)
+To prevent UI blocking and improve user experience, the chat pipeline is split into two rapid requests:
+
+### Phase 1: Rapid Transcription & Acknowledgement (`POST /chat/transcribe`)
 
 ```
-1. User records audio in browser → uploads to /chat/audio
-2. stt_handler.transcribe():
+1. User records audio in browser → uploads to /chat/transcribe
+2. Fast DB check: `current_user.credits_balance > 0`
+3. stt_handler.transcribe():
    a. [Sarvam translate] → English text (for AI reasoning)
    b. [Sarvam translit] → Hinglish text (for UI display)
-3. User message saved to DB (messages table)
+4. Application instantly returns {"translated_text": "...", "translit_text": "..."} back to UI.
+5. (Optional) A quick "Thinking..." fallback audio track is returned to keep the user engaged.
+```
+
+### Phase 2: AI Reasoning and TTS (`POST /chat/text`)
+
+```
+1. Frontend instantly paints the user's recognized text bubble.
+2. Frontend immediately fires HTTP POST to `/chat/text` with the English text payload.
+3. User message formally saved to DB (messages table), 1 credit deducted.
 4. graph.run_graph() → LangGraph DAG:
    a. intent_router  → classify: WEB | RAG | DIRECT
    b. query_refiner  → 3 optimised queries (skip if DIRECT)
@@ -330,12 +341,8 @@ Ingest is a CLI script run manually before deploying; re-runs do a full refresh 
    e. research_synthesize → Hinglish TTS-ready response
 5. tts_handler.generate_audio() → [Sarvam bulbul:v3] → MP3 file
 6. AI message + audio_url saved to DB
-7. Response returned: {user_message, ai_message}
+7. Response returned: {ai_message} ready for immediate playback in the frontend.
 ```
-
-### Text Input (`POST /chat/text`)
-
-Same pipeline as above but skips step 1–2; user text is passed directly. TTS audio generation is optional (controlled by `generate_audio` flag in request).
 
 ---
 

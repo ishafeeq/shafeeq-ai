@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -25,12 +26,12 @@ export const WaveBackground: React.FC<{ volume: number }> = ({ volume }) => {
     resize();
     window.addEventListener('resize', resize);
 
-    // Wave definitions — each has its own phase offset, frequency multiplier, and color
+    // Wave definitions — each has its own phase offset, frequency multiplier, and color (green for listening)
     const waves = [
-      { freq: 1.0, phase: 0,    color: 'rgba(59,130,246,0.8)',  width: 2.0 },
-      { freq: 1.3, phase: 1.2,  color: 'rgba(96,165,250,0.5)',  width: 1.5 },
-      { freq: 0.7, phase: 2.5,  color: 'rgba(147,197,253,0.3)', width: 1.0 },
-      { freq: 1.7, phase: 0.8,  color: 'rgba(59,130,246,0.2)',  width: 1.0 },
+      { freq: 1.0, phase: 0,    color: 'rgba(16,185,129,0.8)',  width: 2.0 }, // emerald-500
+      { freq: 1.3, phase: 1.2,  color: 'rgba(52,211,153,0.5)',  width: 1.5 }, // emerald-400
+      { freq: 0.7, phase: 2.5,  color: 'rgba(110,231,183,0.3)', width: 1.0 }, // emerald-300
+      { freq: 1.7, phase: 0.8,  color: 'rgba(16,185,129,0.2)',  width: 1.0 }, // emerald-500
     ];
 
     const draw = () => {
@@ -42,8 +43,8 @@ export const WaveBackground: React.FC<{ volume: number }> = ({ volume }) => {
       const H = canvas.offsetHeight;
       ctx.clearRect(0, 0, W, H);
 
-      // Background
-      ctx.fillStyle = '#020817';
+      // Background (Green tint)
+      ctx.fillStyle = '#021008';
       ctx.fillRect(0, 0, W, H);
 
       const baseAmp  = 8  + v * 70;   // amplitude grows with voice
@@ -262,12 +263,85 @@ export const ConcentricBackground: React.FC = () => (
   </div>
 );
 
+// ── 3.5 THINKING: Engaging pulsing orbs with grid ──────────────────────────────
+export const ThinkingBackground: React.FC = () => (
+  <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center bg-[#09090b]">
+    {/* Deep purple/blue pulsing gradient orb */}
+    <motion.div
+      animate={{
+        scale: [1, 1.3, 1],
+        opacity: [0.3, 0.6, 0.3],
+        rotate: [0, 180, 360]
+      }}
+      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+      className="absolute w-[60vmin] h-[60vmin] rounded-full blur-[100px]"
+      style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.3) 0%, transparent 70%)' }}
+    />
+    <motion.div
+      animate={{
+        scale: [1.2, 0.9, 1.2],
+        opacity: [0.2, 0.5, 0.2],
+        rotate: [360, 180, 0]
+      }}
+      transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+      className="absolute w-[50vmin] h-[50vmin] rounded-full blur-[80px]"
+      style={{ background: 'radial-gradient(circle, rgba(59,130,246,0.4) 0%, transparent 70%)' }}
+    />
+    
+    {/* Grid overlay for a tech feel */}
+    <div 
+      className="absolute inset-0 opacity-20"
+      style={{
+        backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
+        backgroundSize: '40px 40px',
+        animation: 'panGrid 20s linear infinite',
+      }}
+    />
+    <style>{`
+      @keyframes panGrid {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(40px); }
+      }
+    `}</style>
+  </div>
+);
+
 // ── 4. Idle ───────────────────────────────────────────────────────────────────
 export const IdleBackground: React.FC = () => (
-  <div
-    className="absolute inset-0 pointer-events-none"
-    style={{ background: 'radial-gradient(ellipse at 50% 30%, #0f172a 0%, #09090b 70%)' }}
-  />
+  <div className="absolute inset-0 pointer-events-none overflow-hidden bg-[#09090b]">
+    {/* Animated blurred gradient blobs (the "wave") */}
+    <motion.div
+      animate={{
+        scale: [1, 1.2, 1],
+        opacity: [0.3, 0.4, 0.3],
+        rotate: [0, 90, 0]
+      }}
+      transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+      className="absolute -inset-10 opacity-30 blur-[80px]"
+      style={{ background: 'radial-gradient(circle at 40% 50%, rgba(59,130,246,0.3) 0%, transparent 60%)' }}
+    />
+    <motion.div
+      animate={{
+        scale: [1.2, 1, 1.2],
+        opacity: [0.2, 0.3, 0.2],
+        rotate: [0, -90, 0]
+      }}
+      transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
+      className="absolute inset-0 opacity-20 blur-[80px]"
+      style={{ background: 'radial-gradient(circle at 60% 60%, rgba(139,92,246,0.25) 0%, transparent 50%)' }}
+    />
+    
+    {/* SVG Gaussian Noise Overlay */}
+    <div className="absolute inset-0 opacity-[0.25] mix-blend-overlay">
+      <svg className="w-full h-full">
+        <filter id="noise">
+          <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="3" stitchTiles="stitch" />
+          <feColorMatrix type="matrix" values="1 0 0 0 0, 0 1 0 0 0, 0 0 1 0 0, 0 0 0 0.4 0" />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#noise)" />
+      </svg>
+    </div>
+  </div>
 );
 
 // ── Orchestrator ──────────────────────────────────────────────────────────────
@@ -275,10 +349,28 @@ export const StateBackground: React.FC<{
   voiceState: VoiceState;
   volume?: number;
 }> = ({ voiceState, volume = 0 }) => (
-  <div className="absolute inset-0 z-0">
-    {voiceState === 'idle'      && <IdleBackground />}
-    {voiceState === 'listening' && <WaveBackground volume={volume} />}
-    {voiceState === 'thinking'  && <IdleBackground />}
-    {voiceState === 'speaking'  && <ConcentricBackground />}
+  <div className="absolute inset-0 z-0 bg-[#09090b] overflow-hidden">
+    <AnimatePresence mode="popLayout">
+      {voiceState === 'idle' && (
+        <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="absolute inset-0">
+          <IdleBackground />
+        </motion.div>
+      )}
+      {voiceState === 'thinking' && (
+        <motion.div key="thinking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1 }} className="absolute inset-0">
+          <ThinkingBackground />
+        </motion.div>
+      )}
+      {voiceState === 'listening' && (
+        <motion.div key="listening" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8 }} className="absolute inset-0">
+          <WaveBackground volume={volume} />
+        </motion.div>
+      )}
+      {voiceState === 'speaking' && (
+        <motion.div key="speaking" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8 }} className="absolute inset-0">
+          <ConcentricBackground />
+        </motion.div>
+      )}
+    </AnimatePresence>
   </div>
 );

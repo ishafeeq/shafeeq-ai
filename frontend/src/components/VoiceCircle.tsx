@@ -14,13 +14,21 @@ const MicCore: React.FC<{ isListening: boolean }> = ({ isListening }) => (
   <motion.div
     key="mic"
     initial={{ opacity: 0, scale: 0.5, rotate: -90 }}
-    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+    animate={
+      isListening
+        ? { opacity: 1, scale: 1, rotate: 0 }
+        : { opacity: [0.7, 1, 0.7], scale: [0.95, 1.05, 0.95], rotate: 0 }
+    }
     exit={{ opacity: 0, scale: 0.5, rotate: 90 }}
-    transition={{ duration: 0.35, ease: 'easeOut' }}
+    transition={
+      isListening
+        ? { duration: 0.35, ease: 'easeOut' }
+        : { duration: 3.5, repeat: Infinity, ease: 'easeInOut' }
+    }
   >
     <Mic
       className={`w-16 h-16 transition-colors duration-300 ${
-        isListening ? 'text-blue-300' : 'text-blue-500/70'
+        isListening ? 'text-blue-300' : 'text-blue-500/80'
       }`}
     />
   </motion.div>

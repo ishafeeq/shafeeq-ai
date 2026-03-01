@@ -36,6 +36,7 @@ dist-ssr
 .env.test.local
 .env.production.local
 *.local
+secrets/*
 
 # --- Backend (Python/FastAPI) ---
 # Python-generated files

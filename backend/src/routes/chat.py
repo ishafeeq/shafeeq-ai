@@ -10,7 +10,7 @@ from .. import models, schemas, auth, database
 # Production LangGraph agent (router → web_search/rag_search → synthesize)
 from ..graph import run_graph
 from ..stt_handler import transcribe
-from ..tts_handler import speak
+from ..tts_handler import speak, generate_audio
 
 router = APIRouter(tags=["Chat & History"])
 
@@ -41,11 +41,18 @@ def get_conversation(conversation_id: int, db: Session = Depends(database.get_db
 @router.post("/chat/transcribe", response_model=schemas.TranscribeResponse)
 async def transcribe_audio(
     file: UploadFile = File(...),
+    duration: float = Form(0.0),
     language: str = Form("hi-IN"),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    print("DEBUG: transcribe_audio endpoint called")
+    print(f"DEBUG: transcribe_audio endpoint called with duration: {duration}")
     try:
+        if duration > 30.0:
+            raise HTTPException(status_code=400, detail="Audio file too long. Maximum 30 seconds allowed.")
+
+        if current_user.credits_balance <= 0:
+            raise HTTPException(status_code=400, detail="Insufficient credits. Please upgrade your plan.")
+
         # Save Uploaded Audio
         upload_dir = "uploads"
         os.makedirs(upload_dir, exist_ok=True)
@@ -55,6 +62,13 @@ async def transcribe_audio(
         
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+
+        # Validate file size (heuristics for 30s of WebM/Wav usually < 5MB)
+        # We will restrict to 5MB to be safe, as Sarvam only supports 30s.
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        if file_size_mb > 5.0:
+            os.remove(file_path) # Clean up
+            raise HTTPException(status_code=400, detail="Audio file too large. Maximum 30 seconds allowed.")
 
         # Transcribe: returns {"translated_text": str, "translit_text": str}
         logging.info(f"Transcribing file: {file_path}")
@@ -68,10 +82,25 @@ async def transcribe_audio(
 
         logging.info(f"[transcribe] translated='{translated_text[:80]}' translit='{translit_text[:80]}'")
 
+        # Generate intermediate audio
+        intermediate_audio_url = None
+        if translit_text:
+            try:
+                # Custom acknowledgement text replacing {user's_query}
+                ack_text = f"aapka sawal hai: '{translit_text}'. Main is bare mein soch samajh kar answer deti hun, thoda sa time den mjhe bas."
+                
+                tts_filename = f"intermediate_{uuid.uuid4()}.mp3"
+                tts_path = os.path.join(upload_dir, tts_filename)
+                logging.info(f"[transcribe] Generating intermediate TTS audio → {tts_path}")
+                intermediate_audio_url = generate_audio(ack_text, tts_path)
+            except Exception as e:
+                logging.error(f"[transcribe] Intermediate TTS failed: {e}")
+
         return schemas.TranscribeResponse(
             text=translated_text,
             translit_text=translit_text,
-            audio_url=file_path,
+            audio_url=intermediate_audio_url if intermediate_audio_url else file_path,
+            intermediate_audio_url=intermediate_audio_url,
         )
 
     except HTTPException:
@@ -102,6 +131,14 @@ def chat_text(
     ).first()
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # 1.5 Verify user has enough credits
+    if current_user.credits_balance <= 0:
+        raise HTTPException(status_code=400, detail="Insufficient credits. Please upgrade your plan.")
+
+    # 1.6 Deduct credit
+    current_user.credits_balance -= 1
+    db.commit()
 
     # 2. Load conversation history (last 20 messages) for LangGraph context
     prior_messages = (
@@ -164,95 +201,4 @@ def chat_text(
     
     return ai_msg
 
-@router.post("/chat/audio", response_model=schemas.AudioResponse)
-async def chat_audio(
-    conversation_id: int,
-    file: UploadFile = File(...),
-    db: Session = Depends(database.get_db),
-    current_user: models.User = Depends(auth.get_current_user)
-):
-    print("DEBUG: chat_audio endpoint called")
-    try:
-        # 1. Verify conversation
-        conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id, models.Conversation.user_id == current_user.id).first()
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
 
-        # 2. Save Uploaded Audio
-        upload_dir = "uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-        file_ext = file.filename.split(".")[-1]
-        filename = f"{uuid.uuid4()}.{file_ext}"
-        file_path = os.path.join(upload_dir, filename)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # 3. Transcribe: returns {"translated_text": str, "translit_text": str}
-        logging.info(f"Transcribing file: {file_path}")
-        stt_result    = transcribe(file_path)
-        user_text     = stt_result.get("translated_text", "")
-        translit_text = stt_result.get("translit_text", "")
-        if not user_text:
-            logging.error(f"Transcription failed for file: {file_path}")
-            raise HTTPException(status_code=400, detail="Could not transcribe audio")
-        logging.info(f"[chat_audio] translated='{user_text[:80]}' translit='{translit_text[:80]}'")
-
-        # 4. Save User Message (with audio link)
-        user_msg = models.Message(conversation_id=conversation_id, role="user", content=user_text, audio_url=file_path)
-        db.add(user_msg)
-        db.commit()
-        db.refresh(user_msg)
-
-        # 5. Load history and run LangGraph agent
-        prior_messages = (
-            db.query(models.Message)
-            .filter(models.Message.conversation_id == conversation_id)
-            .order_by(models.Message.created_at.asc())
-            .limit(20)
-            .all()
-        )
-        history = [{"role": m.role, "content": m.content} for m in prior_messages]
-
-        logging.info(f"[chat_audio] Invoking graph for user={current_user.id} conv={conversation_id}")
-        ai_response_text = run_graph(
-            user_id=current_user.id,
-            conversation_id=conversation_id,
-            user_name=current_user.full_name or "",
-            user_mobile=current_user.mobile_number or "",
-            user_text=user_text,
-            history=history,
-            translit_text=translit_text or None,  # ← Hinglish from STT translit mode
-        )
-
-        # 6. Generate Audio Response (TTS)
-        print("DEBUG: Importing tts_handler...")
-        from ..tts_handler import generate_audio
-        
-        tts_filename = f"response_{uuid.uuid4()}.mp3"
-        tts_path = os.path.join(upload_dir, tts_filename)
-        
-        # Generate audio
-        print(f"DEBUG: Generating audio response to {tts_path}")
-        output_path = generate_audio(ai_response_text, tts_path)
-        
-        ai_msg = models.Message(
-            conversation_id=conversation_id, 
-            role="assistant", 
-            content=ai_response_text,
-            audio_url=output_path # Store the path/URL
-        )
-        db.add(ai_msg)
-        db.commit()
-        db.refresh(ai_msg)
-
-        return schemas.AudioResponse(user_message=user_msg, ai_message=ai_msg)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"DEBUG: CRITICAL ERROR IN chat_audio: {e}")
-        logging.exception(f"CRITICAL ERROR IN chat_audio: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))

@@ -40,11 +40,11 @@ logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
-SARVAM_API_KEY  = os.getenv("SARVAM_API_KEY", "")
-TAVILY_API_KEY  = os.getenv("TAVILY_API_KEY", "")
-DATABASE_URL    = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/jeetu")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "")
+GROQ_API_KEY    = os.environ["GROQ_API_KEY"]
+SARVAM_API_KEY  = os.environ["SARVAM_API_KEY"]
+TAVILY_API_KEY  = os.environ["TAVILY_API_KEY"]
+DATABASE_URL    = os.environ["DATABASE_URL"]
+OLLAMA_BASE_URL = os.environ["OLLAMA_BASE_URL"]
 
 # Groq model IDs — GPT-OSS series
 GUARDRAIL_MODEL   = "openai/gpt-oss-20b"     # Routing & utility layer (131k ctx, ~1000 tps)
@@ -377,7 +377,7 @@ Current date: {current_date}.
 
 ## Language
 - Always respond in Hinglish — a natural mix of Hindi and English the way educated people speak in India.
-- ALWAYS use respectful "aap" form (आप, आपको, आपने, आपका) — NEVER use "tu", "tum", "bhai", or "yaar".
+- ALWAYS use respectful "aap" form (aap, aapko, aapne, aapka) — NEVER use "tu", "tum", "bhai", or "yaar".
 - Use respectful connectors: "aap jaante hain", "bilkul", "zaroor", "theek hai", "waise", "lekin", "aur", "toh", "matlab".
 - Use English for technical terms, names, dates, and facts.
 - Your tone is warm, helpful, and respectful — like a knowledgeable friend who speaks with courtesy.

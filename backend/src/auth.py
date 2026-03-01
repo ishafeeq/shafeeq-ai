@@ -9,9 +9,9 @@ import random
 from . import models, schemas, database
 
 # Secret key settings
-SECRET_KEY = os.getenv("SECRET_KEY", "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7")
+SECRET_KEY = os.environ["SECRET_KEY"]
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60 # 30 days for mobile app feel
+ACCESS_TOKEN_EXPIRE_MINUTES = 10 * 24 * 60 # 10 days for mobile app feel
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 

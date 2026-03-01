@@ -3,12 +3,16 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package.json package-lock.json* ./
+# Copy package.json only to bypass corrupted package-lock.json permissions
+COPY package.json ./
+
+# Install dependencies without forcing the lockfile
 RUN npm install
 
-# Copy application source code and build
-COPY . .
+# Copy the rest of the source code explicitly
+COPY src/ ./src/
+COPY public/ ./public/
+COPY index.html vite.config.ts tsconfig*.json eslint.config.js ./
 RUN npm run build
 
 # Stage 2: Serve with Nginx Reverse Proxy

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AuthModal } from './components/AuthModal';
 import { Profile } from './pages/Profile';
@@ -9,18 +9,19 @@ import { ConversationHistory } from './components/ConversationHistory';
 import { StateBackground, ThinkingTextOverlay } from './components/StateBackgrounds';
 import { useChat } from './hooks/useChat';
 import { WavRecorder } from './utils/WavRecorder';
-import { Mic, Square, Menu } from 'lucide-react';
+import { Loader2, Menu, Mic, Square } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Voice state machine ──────────────────────────────────────────────────────
 type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 // ─── Status labels ────────────────────────────────────────────────────────────
 const STATUS: Record<Lang, Record<VoiceState, string>> = {
-  hi: {
-    idle:      'बोलिए...',
-    listening: 'सुन रहा हूँ...',
-    thinking:  'सोच रहा हूँ...',
-    speaking:  'बोल रहा हूँ...',
+  'hi-en': {
+    idle:      'Baat karne ke liye button ko daba ke rakhen',
+    listening: 'Sun rahi hun',
+    thinking:  'Soch rahi hun',
+    speaking:  'Bol rahi hun',
   },
   en: {
     idle:      'Tap to speak',
@@ -31,32 +32,55 @@ const STATUS: Record<Lang, Record<VoiceState, string>> = {
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-const BolAIScreen: React.FC = () => {
+interface BolAIScreenProps {
+  lang: Lang;
+  showSidebar: boolean;
+  setShowSidebar: (v: boolean) => void;
+  setShowAuthModal: (v: boolean) => void;
+}
+
+const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: BolAIScreenProps) => {
   const { user } = useAuth();
-  const { messages, setMessages, sendAudio, isProcessing, processingStep } = useChat();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [lang, setLang] = useState<Lang>('hi');
+  const { 
+    messages, 
+    setMessages, 
+    sendAudio, 
+    isProcessing, 
+    conversations,
+    loadConversation,
+    conversationId,
+    setConversationId
+  } = useChat();
+
   const [isRecording, setIsRecording] = useState(false);
-  const [volume, setVolume] = useState(1);
   const [micVolume, setMicVolume] = useState(0);   // 0–1 from audio stream
   const [playingMsgId, setPlayingMsgId] = useState<number | null>(null);
+
+  // Audio state
+  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
+  const [isAudioPlaying] = useState(false);
+  const isRecordingRef = useRef(false);
+  
+  // Recording timer state
+  const [recordingTimeLeft, setRecordingTimeLeft] = useState(30);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const wavRecorder = useRef<WavRecorder | null>(null);
   const audioPlayer  = useRef<HTMLAudioElement | null>(null);
   const analyserRef  = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number>(0);
+  const lastPlayedMsgRef = useRef<number | null>(null);
 
-  const langCode = lang === 'hi' ? 'hi-IN' : 'en-IN';
+  const langCode = lang === 'hi-en' ? 'hi-IN' : 'en-IN';
 
-  // Derive single voice state
-  const voiceState: VoiceState = isRecording
-    ? 'listening'
-    : isProcessing && processingStep.toLowerCase().includes('think')
-    ? 'thinking'
-    : isProcessing || playingMsgId !== null
-    ? 'speaking'
-    : 'idle';
+  // Derive single voice state (This logic is now replaced by the explicit `voiceState` state)
+  // const voiceState: VoiceState = isRecording
+  //   ? 'listening'
+  //   : isProcessing && processingStep.toLowerCase().includes('think')
+  //   ? 'thinking'
+  //   : isProcessing || playingMsgId !== null
+  //   ? 'speaking'
+  //   : 'idle';
 
   // Init audio player
   useEffect(() => {
@@ -65,25 +89,9 @@ const BolAIScreen: React.FC = () => {
     return () => { audioPlayer.current?.pause(); };
   }, []);
 
-  // Sync volume
-  useEffect(() => {
-    if (audioPlayer.current) audioPlayer.current.volume = volume;
-  }, [volume]);
+  // No volume sync needed since volume was removed
 
-  // Auto-play latest assistant message
-  useEffect(() => {
-    const lastMsg = messages[messages.length - 1];
-    if (lastMsg?.role === 'assistant' && lastMsg.audio_url && playingMsgId === null) {
-      playAudio(lastMsg.audio_url, lastMsg.id);
-    }
-  }, [messages]);
-
-  // Haptic on thinking → speaking
-  useEffect(() => {
-    if (voiceState === 'speaking' && navigator.vibrate) navigator.vibrate([40, 20, 40]);
-  }, [voiceState]);
-
-  const playAudio = (url: string, msgId: number) => {
+  const playAudio = useCallback((url: string, msgId: number) => {
     if (!audioPlayer.current) return;
     if (playingMsgId === msgId) {
       if (audioPlayer.current.paused) audioPlayer.current.play();
@@ -95,10 +103,45 @@ const BolAIScreen: React.FC = () => {
     const fullUrl = url.startsWith('http')
       ? url.replace(/^https?:\/\/[^/]+/, '')   // strip origin, keep path
       : `/${url.replace(/^\//, '')}`;           // ensure leading slash
+      
+    // Force reset the audio element before applying new source
+    audioPlayer.current.pause();
+    audioPlayer.current.loop = false;
     audioPlayer.current.src = fullUrl;
-    audioPlayer.current.play().catch(console.error);
+    audioPlayer.current.load();
+    
+    const playPromise = audioPlayer.current.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((e) => {
+        console.error("Audio playback locked by browser policy:", e);
+      });
+    }
     setPlayingMsgId(msgId);
-  };
+  }, [playingMsgId]);
+
+  // Auto-play latest assistant message OR intermediate audio
+  useEffect(() => {
+    if (messages.length === 0) return;
+    
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg) return;
+    
+    // 2. Play intermediate audio for User's query immediately as it's added (optimistic update)
+    if (lastMsg.role === 'user' && lastMsg.intermediate_audio_url && lastMsg.id !== lastPlayedMsgRef.current) {
+      lastPlayedMsgRef.current = lastMsg.id;
+      playAudio(lastMsg.intermediate_audio_url, lastMsg.id);
+    }
+    // 1. Play Assistant's audio response
+    else if (lastMsg.role === 'assistant' && lastMsg.audio_url && lastMsg.id !== lastPlayedMsgRef.current) {
+      lastPlayedMsgRef.current = lastMsg.id;
+      playAudio(lastMsg.audio_url, lastMsg.id);
+    }
+  }, [messages, playAudio]);
+
+  // Haptic on thinking → speaking
+  useEffect(() => {
+    if (voiceState === 'speaking' && navigator.vibrate) navigator.vibrate([40, 20, 40]);
+  }, [voiceState]);
 
   // Live mic volume via Web Audio API
   const startVolumeMonitor = (stream: MediaStream) => {
@@ -123,88 +166,134 @@ const BolAIScreen: React.FC = () => {
     setMicVolume(0);
   };
 
-  const handleMicPress = async () => {
-    if (!user) { setShowAuthModal(true); return; }
-
-    if (isRecording) {
-      stopVolumeMonitor();
-      if (wavRecorder.current) {
-        const blob = await wavRecorder.current.stop();
-        setIsRecording(false);
-        await sendAudio(blob, langCode);
-      }
-    } else {
-      audioPlayer.current?.pause();
-      setPlayingMsgId(null);
-      try {
-        wavRecorder.current = new WavRecorder();
-        const stream = await wavRecorder.current.start();
-        if (stream) startVolumeMonitor(stream);
-        setIsRecording(true);
-        if (navigator.vibrate) navigator.vibrate(30);
-      } catch {
-        alert(lang === 'hi' ? 'माइक्रोफ़ोन एक्सेस नहीं मिली।' : 'Could not access microphone.');
-      }
+  // Handle stopping the recording timer
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-  };
+    setRecordingTimeLeft(30); // Reset for next time
+  }, []);
+
+  const stopRecording = useCallback(async (e?: Event | React.SyntheticEvent) => {
+    e?.preventDefault();
+    if (!isRecordingRef.current) return;
+    
+    isRecordingRef.current = false;
+    stopVolumeMonitor();
+    stopTimer();
+    if (wavRecorder.current) {
+      const { blob, duration } = await wavRecorder.current.stop();
+      setIsRecording(false);
+      setVoiceState('idle'); 
+      
+      // Unlock Safari/iOS audio context synchronously on user interaction
+      if (audioPlayer.current) {
+        audioPlayer.current.loop = true;
+        audioPlayer.current.src = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU5LjE2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXVqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqv//////////////////////////////////////////////////AAAAAExhdmM1OS4xOAAAAAAAAAAAAAAAAQAkBIKDAAAEAQAAASCG4/h1AAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAAOTku//MUZAgAAAGkAAAAAAAAA0gAAAAANVVV";
+        audioPlayer.current.play().catch(() => {});
+      }
+      
+      await sendAudio(blob, duration, langCode);
+    }
+  }, [langCode, sendAudio, stopTimer]);
+
+  // Set up the recording timer effect
+  useEffect(() => {
+    if (isRecording) {
+      setRecordingTimeLeft(30);
+      timerRef.current = setInterval(() => {
+        setRecordingTimeLeft((prev: number) => prev - 1);
+      }, 1000);
+    } else {
+      stopTimer();
+    }
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isRecording, stopTimer]);
+
+  useEffect(() => {
+    if (isRecording && recordingTimeLeft <= 0) {
+      stopRecording();
+    }
+  }, [recordingTimeLeft, isRecording, stopRecording]);
+
+  const startRecording = useCallback(async (e?: Event | React.SyntheticEvent) => {
+    e?.preventDefault();
+    if (!user) { setShowAuthModal(true); return; }
+    if (isRecordingRef.current) return;
+
+    audioPlayer.current?.pause();
+    setPlayingMsgId(null);
+    try {
+      wavRecorder.current = new WavRecorder();
+      const stream = await wavRecorder.current.start();
+      if (stream) startVolumeMonitor(stream);
+      isRecordingRef.current = true;
+      setIsRecording(true);
+      setVoiceState('listening'); 
+      if (navigator.vibrate) navigator.vibrate(30);
+    } catch {
+      alert(lang === 'hi-en' ? 'Microphone access nahi mili.' : 'Could not access microphone.');
+    }
+  }, [user, lang]);
+
+  // Global spacebar logic
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        startRecording(e);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        stopRecording(e);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [startRecording, stopRecording]);
+
+  // Update voiceState based on isProcessing and playingMsgId
+  useEffect(() => {
+    if (isRecording) {
+      setVoiceState('listening');
+    } else if (playingMsgId !== null) {
+      setVoiceState('speaking');
+    } else if (isProcessing) {
+      setVoiceState('thinking');
+    } else {
+      setVoiceState('idle');
+    }
+  }, [isRecording, isProcessing, playingMsgId]);
+
 
   const handleNewChat = () => {
+    setConversationId(null);
     setMessages([]);
     audioPlayer.current?.pause();
     setPlayingMsgId(null);
+    setShowSidebar(false);
   };
 
-  const statusLabel = STATUS[lang][voiceState];
+  // const statusLabel = STATUS[lang][voiceState];
 
   return (
     <div
-      className="w-full flex flex-col overflow-hidden relative"
-      style={{ height: '100dvh', fontFamily: "'Inter', 'SF Pro Display', system-ui, sans-serif" }}
+      className="w-full flex-1 flex flex-col overflow-hidden relative"
     >
 
       {/* ── Full-screen state-driven background ── */}
       <StateBackground voiceState={voiceState} volume={micVolume} />
-
-      {/* ── Glassmorphism Header ── */}
-      <div
-        className="flex-shrink-0 relative z-20"
-        style={{
-          background: 'rgba(9,9,11,0.6)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
-        }}
-      >
-        <div className="flex items-center px-4 h-14">
-          {/* Sidebar toggle */}
-          <button
-            onClick={() => setShowSidebar(true)}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors mr-2"
-          >
-            <Menu size={20} />
-          </button>
-
-          {/* Logo */}
-          <div className="flex items-center gap-2 flex-1">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}
-            >
-              <span className="text-white text-xs font-black">B</span>
-            </div>
-            <span className="text-white font-bold text-base tracking-tight">Bol AI</span>
-          </div>
-
-          {/* Right controls */}
-          <Header
-            lang={lang}
-            onLangToggle={() => setLang((l) => (l === 'hi' ? 'en' : 'hi'))}
-            volume={volume}
-            onVolumeChange={setVolume}
-            onLoginClick={() => setShowAuthModal(true)}
-          />
-        </div>
-      </div>
 
       {/* ── Main: Conversation History ── */}
       <main className="flex-1 relative z-10 overflow-hidden flex flex-col">
@@ -226,22 +315,50 @@ const BolAIScreen: React.FC = () => {
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderTop: '1px solid rgba(255,255,255,0.05)',
-          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)',
-          minHeight: '160px',
+          paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
+          minHeight: '100px',
         }}
       >
-        <div className="flex flex-col items-center pt-5 pb-6 gap-3">
+        <div className="flex flex-col items-center pt-3 pb-4 gap-2">
           {/* Status label */}
-          <div
-            className="text-xs font-medium tracking-wide transition-all duration-300"
-            style={{
-              color: voiceState === 'listening' ? '#60a5fa'
-                   : voiceState === 'thinking'  ? '#c084fc'
-                   : voiceState === 'speaking'  ? '#34d399'
-                   : '#52525b',
-            }}
-          >
-            {statusLabel}
+          <div className="flex h-20 flex-col items-center justify-center p-4 text-center relative z-10">
+            {voiceState === 'speaking' && !isAudioPlaying ? (
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+                <p className="text-xl font-medium text-zinc-400">
+                  {STATUS[lang as Lang][voiceState as VoiceState]}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <p className={`text-xl font-medium transition-colors duration-300 ${
+                  voiceState === 'listening' ? 'text-green-500' : 'text-zinc-400'
+                }`}>
+                  {STATUS[lang as Lang][voiceState as VoiceState]}
+                </p>
+                
+                <AnimatePresence>
+                  {voiceState === 'listening' && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0, y: -10 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: -10 }}
+                      className="mt-2 text-sm font-semibold tracking-wide"
+                    >
+                      <span className={recordingTimeLeft <= 10 ? 'text-red-500 animate-pulse' : 'text-green-600/80'}>
+                        {recordingTimeLeft}s remaining
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+            {/* {error && (
+              <div className="mt-4 flex items-center gap-2 text-red-500">
+                <AlertCircle size={18} />
+                <span>{error}</span>
+              </div>
+            )} */}
           </div>
 
           {/* The GPT-OSS Core mic button */}
@@ -280,7 +397,11 @@ const BolAIScreen: React.FC = () => {
 
             {/* Main button */}
             <button
-              onClick={handleMicPress}
+              onMouseDown={startRecording}
+              onMouseUp={stopRecording}
+              onMouseLeave={stopRecording}
+              onTouchStart={startRecording}
+              onTouchEnd={stopRecording}
               className="relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 select-none"
               style={{
                 background: isRecording
@@ -336,12 +457,14 @@ const BolAIScreen: React.FC = () => {
       <ChatSidebar
         isOpen={showSidebar}
         onClose={() => setShowSidebar(false)}
-        messages={messages}
         onNewChat={handleNewChat}
+        conversations={conversations}
+        currentConversationId={conversationId}
+        onSelectConversation={(id: number) => {
+          loadConversation(id);
+          setShowSidebar(false);
+        }}
       />
-
-      {/* Auth Modal */}
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -359,15 +482,77 @@ const BolAIScreen: React.FC = () => {
 };
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
+function AppContent() {
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [lang, setLang] = useState<Lang>('hi-en');
+  const location = useLocation();
+
+  return (
+    <div
+      className="w-full flex flex-col overflow-hidden relative bg-[#09090b]"
+      style={{ height: '100dvh', fontFamily: "'Inter', 'SF Pro Display', system-ui, sans-serif" }}
+    >
+      {/* ── Persistent Glassmorphism Header ── */}
+      <div
+        className="flex-shrink-0 relative z-50"
+        style={{
+          background: 'rgba(9,9,11,0.6)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}
+      >
+        <div className="flex items-center px-4 h-14">
+          {/* Sidebar toggle (only on home logic) */}
+          {location.pathname === '/' ? (
+            <button
+              onClick={() => setShowSidebar(true)}
+              className="p-2 -ml-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors mr-1 sm:mr-2"
+            >
+              <Menu size={20} />
+            </button>
+          ) : (
+             <div className="w-8 sm:w-10"></div>
+          )}
+
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2 flex-1 justify-start">
+            <img 
+              src="/SAI-Logo.webp" 
+              alt="SAI Logo" 
+              className="w-8 h-8 rounded-lg object-contain bg-black/20"
+            />
+            <span className="text-white font-bold text-base tracking-tight hidden sm:block">Shafeeq-AI</span>
+            <span className="text-white font-bold text-base tracking-tight sm:hidden">SAI</span>
+          </Link>
+
+          {/* Right controls */}
+          <Header
+            lang={lang}
+            onLangToggle={() => setLang((l: Lang) => (l === 'hi-en' ? 'en' : 'hi-en'))}
+            onLoginClick={() => setShowAuthModal(true)}
+          />
+        </div>
+      </div>
+
+      <Routes>
+        <Route path="/" element={<BolAIScreen lang={lang} showSidebar={showSidebar} setShowSidebar={setShowSidebar} setShowAuthModal={setShowAuthModal} />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+
+      {/* Global Auth Modal */}
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+    </div>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <Routes>
-          <Route path="/"        element={<BolAIScreen />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="*"        element={<Navigate to="/" />} />
-        </Routes>
+        <AppContent />
       </Router>
     </AuthProvider>
   );

@@ -24,3 +24,13 @@ html, body {
 
 button { user-select: none; -webkit-user-select: none; cursor: pointer; }
 button:focus-visible { outline: 2px solid rgba(59,130,246,0.5); outline-offset: 2px; }
+
+/* Aggressively hide the MSG91 Secure footer */
+msg91-otp-provider a[href*="msg91"],
+msg91-otp-provider img[src*="msg91"],
+[class*="msg91-watermark"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}

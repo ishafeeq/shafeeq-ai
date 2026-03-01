@@ -3,13 +3,9 @@ import os
 import sounddevice as sd
 import soundfile as sf
 import io
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
-
 import re
+
+SARVAM_API_KEY = os.environ["SARVAM_API_KEY"]
 
 def sanitize_text(text: str) -> str:
     """
@@ -26,9 +22,6 @@ def generate_audio(text: str, output_path: str = "output.mp3") -> str:
     Generates audio from text using Sarvam AI's Bulbul v3 model (Streaming) and saves it to a file.
     Returns the path to the saved file if successful, else None.
     """
-    if not SARVAM_API_KEY:
-        raise ValueError("SARVAM_API_KEY not found in environment variables.")
-
     clean_text = sanitize_text(text)
     if not clean_text:
         print("Skipping TTS: No speakable text found (likely only code).")

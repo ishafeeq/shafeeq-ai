@@ -6,8 +6,14 @@ class UserBase(BaseModel):
     mobile_number: str
     email: Optional[str] = None
 
+class UserUpdate(BaseModel):
+    full_name: str
+
 class MobileLogin(BaseModel):
     mobile_number: str
+
+class Msg91Token(BaseModel):
+    token: str
 
 class OTPVerify(BaseModel):
     mobile_number: str
@@ -41,6 +47,7 @@ class TranscribeResponse(BaseModel):
     text: str              # English translated text (for LangGraph)
     translit_text: str     # Hinglish/Devanagari (for UI display)
     audio_url: str
+    intermediate_audio_url: Optional[str] = None
 
 class MessageBase(BaseModel):
     role: str
