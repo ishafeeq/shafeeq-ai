@@ -5,11 +5,15 @@ import { ArrowLeft, LogOut, User, Edit2, Check, X } from 'lucide-react';
 import client from '../api/client';
 
 export const Profile: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, fetchUser } = useAuth();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.full_name || '');
   const [isSaving, setIsSaving] = useState(false);
+
+  React.useEffect(() => {
+    fetchUser();
+  }, []);
 
   const handleLogout = () => {
     logout();

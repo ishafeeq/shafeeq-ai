@@ -6,7 +6,7 @@ import { Profile } from './pages/Profile';
 import { Header, type Lang } from './components/Header';
 import { ChatSidebar } from './components/ChatSidebar';
 import { ConversationHistory } from './components/ConversationHistory';
-import { StateBackground, ThinkingTextOverlay } from './components/StateBackgrounds';
+import { StateBackground } from './components/StateBackgrounds';
 import { useChat } from './hooks/useChat';
 import { WavRecorder } from './utils/WavRecorder';
 import { Loader2, Menu, Mic, Square } from 'lucide-react';
@@ -46,6 +46,7 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
     setMessages, 
     sendAudio, 
     isProcessing, 
+    processingStep,
     conversations,
     loadConversation,
     conversationId,
@@ -119,22 +120,26 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
     setPlayingMsgId(msgId);
   }, [playingMsgId]);
 
-  // Auto-play latest assistant message OR intermediate audio
+  // Auto-play the oldest unplayed message audio 
+  // (Prevents skipping the User message when Assistant box spawns instantly)
   useEffect(() => {
     if (messages.length === 0) return;
     
-    const lastMsg = messages[messages.length - 1];
-    if (!lastMsg) return;
-    
-    // 2. Play intermediate audio for User's query immediately as it's added (optimistic update)
-    if (lastMsg.role === 'user' && lastMsg.intermediate_audio_url && lastMsg.id !== lastPlayedMsgRef.current) {
-      lastPlayedMsgRef.current = lastMsg.id;
-      playAudio(lastMsg.intermediate_audio_url, lastMsg.id);
-    }
-    // 1. Play Assistant's audio response
-    else if (lastMsg.role === 'assistant' && lastMsg.audio_url && lastMsg.id !== lastPlayedMsgRef.current) {
-      lastPlayedMsgRef.current = lastMsg.id;
-      playAudio(lastMsg.audio_url, lastMsg.id);
+    // Find the first message that has audio and hasn't been completely played
+    const unplayedMsg = messages.find(m => 
+      m.audio_url && 
+      m.id !== lastPlayedMsgRef.current && 
+      m.id > (lastPlayedMsgRef.current || 0)
+    );
+
+    if (!unplayedMsg) return;
+
+    if (unplayedMsg.role === 'user') {
+      lastPlayedMsgRef.current = unplayedMsg.id;
+      playAudio(unplayedMsg.audio_url!, unplayedMsg.id);
+    } else if (unplayedMsg.role === 'assistant') {
+      lastPlayedMsgRef.current = unplayedMsg.id;
+      playAudio(unplayedMsg.audio_url!, unplayedMsg.id);
     }
   }, [messages, playAudio]);
 
@@ -263,6 +268,25 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
     };
   }, [startRecording, stopRecording]);
 
+  // Global Audio Event Interceptors for LLM Stream integration
+  useEffect(() => {
+    const handleStopAudio = () => {
+      audioPlayer.current?.pause();
+      setPlayingMsgId(null);
+    };
+    const handlePlayAiAudio = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      playAudio(customEvent.detail.url, customEvent.detail.msgId);
+    };
+
+    window.addEventListener('stopAudio', handleStopAudio);
+    window.addEventListener('playAiAudio', handlePlayAiAudio);
+    return () => {
+      window.removeEventListener('stopAudio', handleStopAudio);
+      window.removeEventListener('playAiAudio', handlePlayAiAudio);
+    };
+  }, [playAudio]);
+
   // Update voiceState based on isProcessing and playingMsgId
   useEffect(() => {
     if (isRecording) {
@@ -270,11 +294,17 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
     } else if (playingMsgId !== null) {
       setVoiceState('speaking');
     } else if (isProcessing) {
-      setVoiceState('thinking');
+      // Differentiate between user playing and backend generating
+      const playingUserMsg = messages.find(m => m.id === playingMsgId && m.role === 'user');
+      if (playingUserMsg) {
+          setVoiceState('speaking');
+      } else {
+          setVoiceState('thinking');
+      }
     } else {
       setVoiceState('idle');
     }
-  }, [isRecording, isProcessing, playingMsgId]);
+  }, [isRecording, isProcessing, playingMsgId, messages]);
 
 
   const handleNewChat = () => {
@@ -301,19 +331,15 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
           messages={messages}
           playingMsgId={playingMsgId}
           onPlayAudio={playAudio}
+          isTyping={isProcessing && processingStep === 'Typing...'}
         />
       </main>
-
-      {/* ── Thinking text overlay: typewriter just above footer ── */}
-      <ThinkingTextOverlay active={voiceState === 'thinking'} />
 
       {/* ── Glassmorphism Footer with Floating Mic ── */}
       <div
         className="flex-shrink-0 relative z-20"
         style={{
           background: 'rgba(9,9,11,0.7)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
           borderTop: '1px solid rgba(255,255,255,0.05)',
           paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 16px)',
           minHeight: '100px',
@@ -498,8 +524,6 @@ function AppContent() {
         className="flex-shrink-0 relative z-50"
         style={{
           background: 'rgba(9,9,11,0.6)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
           borderBottom: '1px solid rgba(255,255,255,0.05)',
         }}
       >

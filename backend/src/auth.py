@@ -45,10 +45,5 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         raise credentials_exception
     return user
 
-# OTP Utilities
-def generate_otp() -> str:
-    # For dev/demo purposes, return predictable OTP or print it
-    return "123456" 
-
 def verify_otp(input_otp: str, stored_otp: str) -> bool:
     return input_otp == stored_otp

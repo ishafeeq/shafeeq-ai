@@ -15,7 +15,7 @@ The backend uses **Uvicorn** (ASGI) with **FastAPI**, which is **asynchronous by
 | Endpoint | Type | Behaviour |
 |---|---|---|
 | `GET /conversations` | Sync (`def`) | Runs in thread pool executor (FastAPI auto-wraps sync routes) |
-| `POST /chat/text` | Sync (`def`) | Runs in thread pool executor |
+| `POST /chat/res-text` | Sync (`def`) | Runs in thread pool executor |
 | `POST /chat/audio` | Async (`async def`) | Runs on event loop, but STT/TTS calls are blocking `requests` |
 | `POST /chat/transcribe` | Async (`async def`) | Same — blocking SDK calls inside async function |
 
@@ -186,7 +186,7 @@ class BolAIUser(HttpUser):
 
     @task(3)
     def chat_text(self):
-        self.client.post("/chat/text",
+        self.client.post("/chat/res-text",
             json={"conversation_id": 1, "content": "What is today's date?", "generate_audio": False},
             headers={"Authorization": f"Bearer {self.token}"}
         )
@@ -206,8 +206,8 @@ locust -f locustfile.py --host https://localhost:8443 --users 20 --spawn-rate 2
 
 | Metric | Target |
 |---|---|
-| `POST /chat/text` (DIRECT intent) | p95 < 5s |
-| `POST /chat/text` (WEB intent) | p95 < 12s |
+| `POST /chat/res-text` (DIRECT intent) | p95 < 5s |
+| `POST /chat/res-text` (WEB intent) | p95 < 12s |
 | `POST /chat/audio` (full round-trip) | p95 < 20s |
 | `GET /conversations` | p99 < 200ms |
 | Error rate under 20 concurrent users | < 1% |
@@ -271,7 +271,7 @@ Key spans to trace:
 **Cost control suggestions:**
 - Log `token_count` from Groq responses: `response.usage.total_tokens`
 - Track per-user `credits_balance` (already in DB) and deduct per request
-- Set **hard limits**: max 3 Tavily searches per `/chat/text` request (already implemented)
+- Set **hard limits**: max 3 Tavily searches per `/chat/res-text` request (already implemented)
 - Alert when daily Groq token spend exceeds threshold
 
 ---
@@ -308,7 +308,7 @@ from main import limiter
 async def chat_audio(request: Request, ...):
     ...
 
-@router.post("/chat/text")
+@router.post("/chat/res-text")
 @limiter.limit("30/minute")          # 30 text requests per minute per IP
 def chat_text(request: Request, ...):
     ...
@@ -387,7 +387,7 @@ http {
 | `POST /send-otp` | 5/min | 3/min | Prevent SMS flood abuse |
 | `POST /verify-otp` | 10/min | 5/min | Prevent brute-force OTP |
 | `POST /chat/audio` | 10/min | 10/min | Most expensive: STT + LLM + TTS |
-| `POST /chat/text` | 30/min | 30/min | Moderately expensive (LLM only) |
+| `POST /chat/res-text` | 30/min | 30/min | Moderately expensive (LLM only) |
 | `POST /chat/transcribe` | 20/min | 20/min | Expensive: 2× Sarvam STT calls |
 | `GET /conversations` | 60/min | 60/min | Cheap DB read |
 | `POST /conversations` | 10/min | 10/min | Low, to prevent spam |

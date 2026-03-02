@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 import { X, Loader2, ChevronDown } from 'lucide-react';
@@ -11,17 +11,8 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
-declare global {
-  interface Window {
-    initSendOTP?: any;
-    sendOtp?: any;
-    verifyOtp?: any;
-  }
-}
-
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const { login } = useAuth();
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [selectedCountry, setSelectedCountry] = useState(countries.find(c => c.code === 'IN') || countries[0]);
   const [phone, setPhone] = useState('');
@@ -29,126 +20,43 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    // Load OTP provider script dynamically
-    const urls = [
-        'https://verify.msg91.com/otp-provider.js',
-        'https://verify.phone91.com/otp-provider.js'
-    ];
-    let i = 0;
-    function attempt() {
-        if (document.querySelector(`script[src="${urls[i]}"]`)) {
-            setScriptLoaded(true);
-            return;
-        }
-        const s = document.createElement('script');
-        s.src = urls[i];
-        s.async = true;
-        s.onload = () => {
-            setScriptLoaded(true);
-        };
-        s.onerror = () => {
-            i++;
-            if (i < urls.length) {
-                attempt();
-            }
-        };
-        document.head.appendChild(s);
-    }
-    attempt();
-  }, []);
-
-  useEffect(() => {
-    if (isOpen && scriptLoaded) {
-      if (!window.initSendOTP) {
-          console.error('Login service is still loading.');
-          return;
-      }
-      const configuration = {
-        widgetId: "366275686c53363538363535",
-        tokenAuth: "495505TQNaBuCuO69988eb5P1",
-        exposeMethods: true,
-        captchaRenderId: "otp-captcha",
-        success: (data: any) => {
-          if (data && data.mobile) {
-            console.log("Success");
-          }
-        },
-        failure: (error: any) => {
-          console.log(error);
-        },
-      };
-      
-      window.initSendOTP(configuration);
-      // Reset state on open
-      setStep('phone');
-      setPhone('');
-      setOtp('');
-      setError('');
-    }
-  }, [isOpen, scriptLoaded]);
-
   const handleSendOtp = () => {
-      // Validate generically for length > 4 internationally
       if (!phone || phone.length < 5) {
           setError('Please enter a valid mobile number');
           return;
       }
-      setLoading(true);
+      // Since this is a hard-coded static OTP, we don't actually need to 
+      // trigger an SMS sending API. We just move directly to the prompt.
+      setStep('otp');
       setError('');
-      
-      const cleanDialCode = selectedCountry.dialCode.replace(/\D/g, '');
-      const formattedPhone = cleanDialCode + phone;
-      
-      if (window.sendOtp) {
-          window.sendOtp(
-              formattedPhone,
-              (_data: any) => {
-                  setLoading(false);
-                  setStep('otp');
-              },
-              (err: any) => {
-                  setLoading(false);
-                  setError(err?.message || 'Failed to send OTP');
-              }
-          );
-      } else {
-          setLoading(false);
-          setError('OTP service not ready. Please try again.');
-      }
   };
 
-  const handleVerifyOtp = () => {
-      if (!otp || otp.length < 4) {
+  const handleVerifyOtp = async () => {
+      if (!otp || otp.length < 6) {
           setError('Please enter a valid OTP');
           return;
       }
       setLoading(true);
       setError('');
       
-      if (window.verifyOtp) {
-          window.verifyOtp(
-              otp,
-              async (data: any) => {
-                 try {
-                     const token = data.message; 
-                     const response = await client.post('/verify-otp-tok', { token });
-                     login(response.data.access_token);
-                     setLoading(false);
-                     onClose();
-                 } catch(err: any) {
-                     setLoading(false);
-                     setError('Authentication failed on server.');
-                 }
-              },
-              (err: any) => {
-                 setLoading(false);
-                 setError(err?.message || 'Invalid OTP');
-              }
-          );
-      } else {
+      const cleanDialCode = selectedCountry.dialCode.replace(/\D/g, '');
+      const formattedPhone = `+${cleanDialCode}${phone}`;
+      
+      try {
+          const response = await client.post('/verify-otp', { 
+            mobile_number: formattedPhone,
+            otp: otp 
+          });
+          login(response.data.access_token);
           setLoading(false);
-          setError('OTP service not ready.');
+          // Reset internal state in case they open it again
+          setStep('phone');
+          setPhone('');
+          setOtp('');
+          onClose();
+      } catch(err: any) {
+          setLoading(false);
+          setError(err.response?.data?.detail || 'Invalid OTP');
       }
   };
 
@@ -221,7 +129,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                                value={otp}
                                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                                   if (e.key === 'Enter' && otp.length >= 4) {
+                                   if (e.key === 'Enter' && otp.length >= 6) {
                                        handleVerifyOtp();
                                    }
                                }}
@@ -248,9 +156,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                    </button>
                </div>
            )}
-
-           {/* Captcha container must always be in the DOM when the modal is open */}
-           <div id="otp-captcha" className="flex justify-center mt-4 empty:mt-0"></div>
        </div>
     </div>
   );

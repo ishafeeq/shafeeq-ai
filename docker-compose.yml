@@ -28,6 +28,7 @@ services:
       - bol_postgres_pass
       - bol_postgres_db
       - bol_postgres_host
+      - bol_dev_hardcoded_otp
     volumes:
       # Shared volume for audio uploads
       - uploads_data:/app/uploads
@@ -35,7 +36,7 @@ services:
       - "9101:8000"
     # Wait for DB, initialize schema, then start Gunicorn
     command: >
-      bash -c " export SARVAM_API_KEY=\$$(cat /run/secrets/bol_sarvam_key); export TAVILY_API_KEY=\$$(cat /run/secrets/bol_tavily_key); export GROQ_API_KEY=\$$(cat /run/secrets/bol_groq_key); export SECRET_KEY=\$$(cat /run/secrets/bol_secret_key); export OTP_AUTH_KEY=\$$(cat /run/secrets/bol_otp_auth_key); export OLLAMA_BASE_URL=\$$(cat /run/secrets/bol_ollama_base_url); export LANGCHAIN_API_KEY=\$$(cat /run/secrets/bol_langchain_api_key); export POSTGRES_USER=\$$(cat /run/secrets/bol_postgres_user); export POSTGRES_PASSWORD=\$$(cat /run/secrets/bol_postgres_pass); export POSTGRES_DB=\$$(cat /run/secrets/bol_postgres_db); export POSTGRES_HOST=\$$(cat /run/secrets/bol_postgres_host); export DATABASE_URL=\"postgresql://\$${POSTGRES_USER}:\$${POSTGRES_PASSWORD}@\$${POSTGRES_HOST}:6543/\$${POSTGRES_DB}\"; python -m src.init_db && gunicorn src.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
+      bash -c " export SARVAM_API_KEY=\$$(cat /run/secrets/bol_sarvam_key); export TAVILY_API_KEY=\$$(cat /run/secrets/bol_tavily_key); export GROQ_API_KEY=\$$(cat /run/secrets/bol_groq_key); export SECRET_KEY=\$$(cat /run/secrets/bol_secret_key); export OTP_AUTH_KEY=\$$(cat /run/secrets/bol_otp_auth_key); export DEV_HARDCODED_OTP=\$$(cat /run/secrets/bol_dev_hardcoded_otp); export OLLAMA_BASE_URL=\$$(cat /run/secrets/bol_ollama_base_url); export LANGCHAIN_API_KEY=\$$(cat /run/secrets/bol_langchain_api_key); export POSTGRES_USER=\$$(cat /run/secrets/bol_postgres_user); export POSTGRES_PASSWORD=\$$(cat /run/secrets/bol_postgres_pass); export POSTGRES_DB=\$$(cat /run/secrets/bol_postgres_db); export POSTGRES_HOST=\$$(cat /run/secrets/bol_postgres_host); export DATABASE_URL=\"postgresql://\$${POSTGRES_USER}:\$${POSTGRES_PASSWORD}@\$${POSTGRES_HOST}:6543/\$${POSTGRES_DB}\"; python -m src.init_db && gunicorn src.main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
 
   frontend:
     build:
@@ -83,3 +84,5 @@ secrets:
     file: ./secrets/bol_langchain_api_key.txt
   bol_postgres_host:
     file: ./secrets/bol_postgres_host.txt
+  bol_dev_hardcoded_otp:
+    file: ./secrets/bol_dev_hardcoded_otp.txt

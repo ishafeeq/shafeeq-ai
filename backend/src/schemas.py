@@ -37,17 +37,18 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 class ChatRequest(BaseModel):
+    request_id: str
     conversation_id: int
     content: str           # English translated text (from Sarvam STT translate mode)
-    translit_text: Optional[str] = None  # Hinglish transliteration (for UI, passed to graph)
-    audio_url: Optional[str] = None
-    generate_audio: bool = False
 
 class TranscribeResponse(BaseModel):
+    request_id: str
     text: str              # English translated text (for LangGraph)
-    translit_text: str     # Hinglish/Devanagari (for UI display)
     audio_url: str
-    intermediate_audio_url: Optional[str] = None
+
+class TransliterateResponse(BaseModel):
+    request_id: str
+    translit_text: str     # Hinglish/Devanagari (for UI display)
 
 class MessageBase(BaseModel):
     role: str

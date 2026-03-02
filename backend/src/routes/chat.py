@@ -1,16 +1,101 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
 import shutil
 import os
 import uuid
 import logging
 
+logger = logging.getLogger(__name__)
+
 from .. import models, schemas, auth, database
+from ..database import SessionLocal
 # Production LangGraph agent (router → web_search/rag_search → synthesize)
-from ..graph import run_graph
-from ..stt_handler import transcribe
+from ..graph import run_context_graph, stream_synthesize
+from ..stt_handler import transcribe_en, transliterate_hi
 from ..tts_handler import speak, generate_audio
+import asyncio
+import json
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
+class AudioGenerateReq(BaseModel):
+    request_id: str
+    message_id: Optional[int] = None
+    
+class ReqAudioQuery(BaseModel):
+    request_id: str
+
+from collections import OrderedDict
+
+class LRUStateCache:
+    def __init__(self, capacity: int = 10):
+        self.cache = OrderedDict()
+        self.capacity = capacity
+
+    def get(self, key: str):
+        if key not in self.cache:
+            return None
+        self.cache.move_to_end(key)
+        return self.cache[key]
+
+    def set(self, key: str, value: dict):
+        self.cache[key] = value
+        self.cache.move_to_end(key)
+        if len(self.cache) > self.capacity:
+            self.cache.popitem(last=False)
+
+request_state_manager = LRUStateCache(10)
+
+# Limit background TTS processing to exactly 2 worker threads globally
+tts_executor = ThreadPoolExecutor(max_workers=2)
+
+def bg_process_req_audio(req_id: str, audio_path: str):
+    try:
+        logging.info(f"Background task starting for req audio {req_id}")
+        translit_text = transliterate_hi(audio_path)
+        state = request_state_manager.get(req_id)
+        if state is not None:
+            state["translit_text"] = translit_text
+        
+        if translit_text:
+            upload_dir = "uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+            tts_filename = f"req_{uuid.uuid4()}.mp3"
+            tts_path = os.path.join(upload_dir, tts_filename)
+            req_audio_url = generate_audio(f"aapne poocha hai ki: {translit_text}. aapka jawab bata rahi hun bas ek minute rukiye", tts_path)
+            
+            state = request_state_manager.get(req_id)
+            if state is not None:
+                state["req_audio_url"] = req_audio_url
+    except Exception as e:
+        logging.error(f"Error in bg_process_req_audio for {req_id}: {e}")
+
+def bg_process_res_audio(req_id: str, text: str):
+    try:
+        logging.info(f"Background task starting for res audio {req_id}")
+        if text:
+            upload_dir = "uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+            tts_filename = f"res_{uuid.uuid4()}.mp3"
+            tts_path = os.path.join(upload_dir, tts_filename)
+            res_audio_url = generate_audio(text, tts_path)
+            
+            state = request_state_manager.get(req_id)
+            if state is not None:
+                state["res_audio_url"] = res_audio_url
+                
+                # Update DB asynchronously if ai_msg_id is present
+                ai_msg_id = state.get("ai_msg_id")
+                if ai_msg_id:
+                    with SessionLocal() as bg_db:
+                        bg_msg = bg_db.query(models.Message).get(ai_msg_id)
+                        if bg_msg:
+                            bg_msg.audio_url = res_audio_url
+                            bg_db.commit()
+    except Exception as e:
+        logging.error(f"Error in bg_process_res_audio for {req_id}: {e}")
 
 router = APIRouter(tags=["Chat & History"])
 
@@ -45,7 +130,7 @@ async def transcribe_audio(
     language: str = Form("hi-IN"),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    print(f"DEBUG: transcribe_audio endpoint called with duration: {duration}")
+    logger.debug(f"DEBUG: transcribe_audio endpoint called with duration: {duration}")
     try:
         if duration > 30.0:
             raise HTTPException(status_code=400, detail="Audio file too long. Maximum 30 seconds allowed.")
@@ -70,59 +155,70 @@ async def transcribe_audio(
             os.remove(file_path) # Clean up
             raise HTTPException(status_code=400, detail="Audio file too large. Maximum 30 seconds allowed.")
 
-        # Transcribe: returns {"translated_text": str, "translit_text": str}
+        # Transcribe (English)
         logging.info(f"Transcribing file: {file_path}")
-        stt_result = transcribe(file_path, language_code=language)
-        translated_text = stt_result.get("translated_text", "")
-        translit_text   = stt_result.get("translit_text", "")
+        translated_text = transcribe_en(file_path, language_code=language)
 
         if not translated_text:
             logging.error(f"Transcription failed for file: {file_path}")
             raise HTTPException(status_code=400, detail="Could not transcribe audio")
 
-        logging.info(f"[transcribe] translated='{translated_text[:80]}' translit='{translit_text[:80]}'")
+        logging.info(f"[transcribe] translated='{translated_text[:80]}")
 
-        # Generate intermediate audio
-        intermediate_audio_url = None
-        if translit_text:
-            try:
-                # Custom acknowledgement text replacing {user's_query}
-                ack_text = f"aapka sawal hai: '{translit_text}'. Main is bare mein soch samajh kar answer deti hun, thoda sa time den mjhe bas."
-                
-                tts_filename = f"intermediate_{uuid.uuid4()}.mp3"
-                tts_path = os.path.join(upload_dir, tts_filename)
-                logging.info(f"[transcribe] Generating intermediate TTS audio → {tts_path}")
-                intermediate_audio_url = generate_audio(ack_text, tts_path)
-            except Exception as e:
-                logging.error(f"[transcribe] Intermediate TTS failed: {e}")
+        req_id = str(uuid.uuid4())
+        
+        # Save isolated transient state matching user workflow sequence
+        request_state_manager.set(req_id, {
+            "user_audio_url": file_path,   # Baseline actual webm path fallback
+        })
+
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(tts_executor, bg_process_req_audio, req_id, file_path)
 
         return schemas.TranscribeResponse(
+            request_id=req_id,
             text=translated_text,
-            translit_text=translit_text,
-            audio_url=intermediate_audio_url if intermediate_audio_url else file_path,
-            intermediate_audio_url=intermediate_audio_url,
+            audio_url=file_path
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        print(f"DEBUG: CRITICAL ERROR IN chat_transcribe: {e}")
+        logger.error(f"DEBUG: CRITICAL ERROR IN chat_transcribe: {e}")
         logging.exception(f"CRITICAL ERROR IN chat_transcribe: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/chat/text", response_model=schemas.Message)
-def chat_text(
+class TranslitReq(BaseModel):
+    request_id: str
+
+@router.post("/chat/transliterate", response_model=schemas.TransliterateResponse)
+async def chat_transliterate(
+    request: TranslitReq,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    state = request_state_manager.get(request.request_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Request state not found or expired")
+        
+    for _ in range(150): # Wait up to 15s for the background worker to populate the translt_text
+        state = request_state_manager.get(request.request_id)
+        if state and "translit_text" in state:
+            return schemas.TransliterateResponse(
+                request_id=request.request_id,
+                translit_text=state["translit_text"]
+            )
+        await asyncio.sleep(0.1)
+
+    raise HTTPException(status_code=408, detail="Transliteration generation timeout")
+
+@router.post("/chat/res-text")
+async def chat_text(
     request: schemas.ChatRequest, 
     db: Session = Depends(database.get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):
     """
-    Process a text message through the production LangGraph agent.
-
-    IMPORTANT: request.content MUST be the English-translated output from
-    Sarvam Saaras-v3 STT (translate mode). The frontend sends this after
-    calling /chat/transcribe, which returns the English text.
-    The graph router, web search, RAG, and synthesizer all operate on English.
+    Process a text message and stream the response via Server-Sent Events (SSE).
     """
     # 1. Verify conversation ownership
     conversation = db.query(models.Conversation).filter(
@@ -140,6 +236,14 @@ def chat_text(
     current_user.credits_balance -= 1
     db.commit()
 
+    # Get pipeline state
+    state_block = request_state_manager.get(request.request_id)
+    if not state_block:
+        state_block = {} # Fallback for text-only direct queries without /transcribe wrapper
+        
+    audio_path = state_block.get('user_audio_url')
+    translit_text = state_block.get('translit_text')
+
     # 2. Load conversation history (last 20 messages) for LangGraph context
     prior_messages = (
         db.query(models.Message)
@@ -155,50 +259,118 @@ def chat_text(
         conversation_id=request.conversation_id, 
         role="user", 
         content=request.content,   # English text from Sarvam STT
-        audio_url=request.audio_url
+        audio_url=audio_path
     )
     db.add(user_msg)
-    db.commit()
 
-    # 4. Run production LangGraph agent
-    #    - request.content = English text from Sarvam Saaras-v3 (translate mode)
-    #    - thread_id = f"user_{user_id}_conv_{conversation_id}" (JWT session → LangGraph checkpoint)
-    logging.info(f"[chat_text] Invoking graph for user={current_user.id} conv={request.conversation_id}")
-    ai_response_text = run_graph(
-        user_id=current_user.id,
-        conversation_id=request.conversation_id,
-        user_name=current_user.full_name or "",
-        user_mobile=current_user.mobile_number or "",
-        user_text=request.content,          # ← English from Sarvam STT translate mode
-        history=history,
-        translit_text=request.translit_text or None,  # ← Hinglish from STT translit mode
-    )
-
-    # 5. Generate Audio Response via Sarvam Bulbul-v3 TTS (Optional)
-    ai_audio_url = None
-    if request.generate_audio:
-        try:
-            from ..tts_handler import generate_audio
-            upload_dir = "uploads"
-            os.makedirs(upload_dir, exist_ok=True)
-            tts_filename = f"response_{uuid.uuid4()}.mp3"
-            tts_path = os.path.join(upload_dir, tts_filename)
-            logging.info(f"[chat_text] Generating TTS audio → {tts_path}")
-            ai_audio_url = generate_audio(ai_response_text, tts_path)
-        except Exception as e:
-            logging.error(f"[chat_text] TTS failed: {e}")
-
-    # 6. Save assistant message to DB
+    # 4. Create empty assistant stub in DB
     ai_msg = models.Message(
         conversation_id=request.conversation_id, 
         role="assistant", 
-        content=ai_response_text,
-        audio_url=ai_audio_url
+        content="",
+        audio_url=None
     )
     db.add(ai_msg)
     db.commit()
     db.refresh(ai_msg)
     
-    return ai_msg
+    # Store ID in state for res-audio chaining
+    if state_block is not None:
+        state_block["ai_msg_id"] = ai_msg.id
 
+    # Copy params for the background generator
+    user_id = current_user.id
+    user_name = current_user.full_name or ""
+    user_mobile = current_user.mobile_number or ""
+    conv_id = request.conversation_id
+    text = request.content
+    translit = translit_text
+    ai_msg_id = ai_msg.id
 
+    async def event_stream():
+        try:
+            # 1. Run context graph natively in async context to prevent blocking
+            logging.info(f"[chat_text] Gathering context for user={user_id} conv={conv_id}")
+            state = await run_context_graph(
+                user_id=user_id,
+                conversation_id=conv_id,
+                user_name=user_name,
+                user_mobile=user_mobile,
+                user_text=text,
+                history=history,
+                translit_text=translit,
+            )
+
+            # 2. Stream LLM tokens natively to frontend
+            full_text = ""
+            async for chunk in stream_synthesize(state):
+                token = chunk.content
+                if token:
+                    full_text += token
+                    logger.debug(f"[API_YIELD]: {token}")
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                    await asyncio.sleep(0)  # Force generic ASGI flush
+
+            # 3. Finalize state in DB with an isolated session
+            with SessionLocal() as bg_db:
+                bg_msg = bg_db.query(models.Message).get(ai_msg_id)
+                if bg_msg:
+                    bg_msg.content = full_text
+                    bg_db.commit()
+            
+            # Post completed text to State memory cache
+            if state_block is not None:
+                state_block["response_text"] = full_text
+                # Trigger the background builder for res-audio natively inside the 2-worker executor
+                loop = asyncio.get_running_loop()
+                loop.run_in_executor(tts_executor, bg_process_res_audio, request.request_id, full_text)
+
+            yield f"data: {json.dumps({'type': 'done', 'message_id': ai_msg_id})}\n\n"
+
+        except Exception as e:
+            logging.error(f"[chat_text] Generator Error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"
+    }
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)
+
+@router.post("/chat/res-audio")
+async def generate_response_audio(
+    request: AudioGenerateReq,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    state = request_state_manager.get(request.request_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Request state not found or expired")
+
+    for _ in range(300): # Wait up to 30s for the res_audio background builder to finish over the GPU
+        state = request_state_manager.get(request.request_id)
+        if state and "res_audio_url" in state:
+            return {"audio_url": state["res_audio_url"], "request_id": request.request_id}
+        await asyncio.sleep(0.1)
+        
+    raise HTTPException(status_code=408, detail="AI TTS Generation timeout")
+
+@router.post("/chat/req-audio")
+async def get_request_audio(
+    request: ReqAudioQuery,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    state = request_state_manager.get(request.request_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Request state not found or expired")
+
+    for _ in range(150): # Wait up to 15s for the STT-paired translit audio builder
+        state = request_state_manager.get(request.request_id)
+        if state and "req_audio_url" in state:
+            return {"audio_url": state["req_audio_url"], "request_id": request.request_id}
+        await asyncio.sleep(0.1)
+
+    raise HTTPException(status_code=408, detail="User TTS Audio not found or timeout")

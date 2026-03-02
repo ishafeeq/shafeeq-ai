@@ -9,45 +9,28 @@ from .. import models, schemas, auth, database
 router = APIRouter(tags=["Authentication"])
 OTP_AUTH_KEY = os.environ["OTP_AUTH_KEY"]
 
-@router.post("/send-otp")
-def send_otp(request: schemas.MobileLogin, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
-    
-    otp = auth.generate_otp()
-    otp_expiry = datetime.utcnow() + timedelta(minutes=5)
-    
-    if not user:
-        # Create a temporary user record or just handle transiently. 
-        # Ideally, we create user on verification.
-        # For simplicity, we can pass OTP back or store in a separate OTP table.
-        # But commonly we upsert user with null details or use a temporary store.
-        # Let's create/update the user record with the OTP.
-        user = models.User(mobile_number=request.mobile_number)
-        db.add(user)
-    
-    user.otp = otp
-    user.otp_expiry = otp_expiry
-    db.commit()
-    
-    # In production, send SMS here.
-    print(f"OTP for {request.mobile_number}: {otp}")
-    
-    return {"message": "OTP sent successfully", "dev_otp": otp}
-
 @router.post("/verify-otp", response_model=schemas.Token)
 def verify_otp(request: schemas.OTPVerify, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.mobile_number == request.mobile_number).first()
-    
-    if not user or not user.otp:
-        raise HTTPException(status_code=400, detail="Invalid request")
-    
-    if user.otp_expiry < datetime.utcnow():
-        raise HTTPException(status_code=400, detail="OTP expired")
-        
-    if not auth.verify_otp(request.otp, user.otp):
+    # Standardize mobile format
+    mobile = request.mobile_number
+    if not mobile.startswith('+'):
+        mobile = '+' + mobile
+
+    dev_otp = os.environ["DEV_HARDCODED_OTP"].strip()
+
+    if request.otp != dev_otp:
         raise HTTPException(status_code=400, detail="Invalid OTP")
+        
+    user = db.query(models.User).filter(models.User.mobile_number == mobile).first()
     
-    # Clear OTP
+    # If the user doesn't exist yet, we register them immediately
+    if not user:
+        user = models.User(mobile_number=mobile)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+    # Clear any pending real OTPs if they exist
     user.otp = None
     user.otp_expiry = None
     

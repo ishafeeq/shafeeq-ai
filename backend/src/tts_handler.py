@@ -4,6 +4,9 @@ import sounddevice as sd
 import soundfile as sf
 import io
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 SARVAM_API_KEY = os.environ["SARVAM_API_KEY"]
 
@@ -24,7 +27,7 @@ def generate_audio(text: str, output_path: str = "output.mp3") -> str:
     """
     clean_text = sanitize_text(text)
     if not clean_text:
-        print("Skipping TTS: No speakable text found (likely only code).")
+        logger.info("Skipping TTS: No speakable text found (likely only code).")
         return None
 
     url = "https://api.sarvam.ai/text-to-speech/stream" 
@@ -61,10 +64,10 @@ def generate_audio(text: str, output_path: str = "output.mp3") -> str:
         return output_path
 
     except requests.exceptions.RequestException as e:
-        print(f"Error during TTS request: {e}")
+        logger.error(f"Error during TTS request: {e}")
         return None
     except Exception as e:
-        print(f"Unexpected error during TTS: {e}")
+        logger.error(f"Unexpected error during TTS: {e}")
         return None
 
 def speak(text: str, output_path: str = "output.mp3") -> None:
@@ -84,6 +87,6 @@ def speak(text: str, output_path: str = "output.mp3") -> None:
             sd.play(data, fs)
             sd.wait()
     except Exception as e:
-        print(f"Error playing audio: {e}")
+        logger.error(f"Error playing audio: {e}")
         if os.uname().sysname == 'Darwin' and not audio_file.endswith(".mp3"):
              os.system(f"afplay {audio_file}")
