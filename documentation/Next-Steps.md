@@ -276,6 +276,43 @@ Key spans to trace:
 
 ---
 
+### 5.4 Advanced LLM Observability & Gatekeeping
+To transition from basic APM to specialized AI telemetry, introduce an LLM Gateway/Observability layer:
+
+**Recommended Providers:** **Helicone** or **Portkey**
+
+| Feature | Implementation Benefit |
+|---|---|
+| **Centralized Telemetry** | Log full trace data of tool calling, exact prompts sent, and agent behavioral flow over time. |
+| **Cost Control** | Enforce precise budgeting, cache frequent queries (e.g. "who are you?"), and route fallback models automatically. |
+| **Guardrails & Security** | Detect PII leakage, block prompt injection attacks, and apply content moderation gates before generating a response. |
+
+```python
+# Implementation Example (Portkey)
+from portkey_ai import Portkey
+
+client = Portkey(
+    api_key="PORTKEY_API_KEY",
+    virtual_key="GROQ_VIRTUAL_KEY", 
+    trace_id=request.headers.get("X-Request-ID")
+)
+```
+
+### 5.5 LLM Evaluation & Testing (MLOps)
+Prevent production regression through deterministic prompt testing and ongoing output evaluation.
+
+| Phase | Tool | Purpose |
+|---|---|---|
+| **Pre-Production** | **Promptfoo** | Run deterministic test matrices against your `_SYNTHESIZE_SYSTEM` prompt variations before merging. |
+| **Post-Production** | **DeepEval** | Continuous evaluation of live outputs over time. |
+
+**Key Evaluation Metrics to Track:**
+- **Hallucination Rate**: Measure factual drift from provided context during RAG scenarios.
+- **Context Drift**: Track if the response loses context deep into a multi-turn conversation.
+- **Answer Relevancy**: Score the precision of the generated Hinglish responses relative to the user's intent.
+
+---
+
 ## 6. DDoS and Rate Limiting
 
 ### Current State
@@ -406,4 +443,5 @@ http {
 | 🟡 **Medium** | Cost | Log Groq token usage per request; deduct from `credits_balance`; set API key spend caps |
 | 🟡 **Medium** | Rate Limiting | Add Nginx `limit_req_zone` rules for IP-level DDoS protection |
 | 🟢 **Low** | Performance Testing | Set up `locust` and establish p95 baseline latencies |
-| 🟢 **Low** | Observability | Add LangGraph node-level tracing spans via OpenTelemetry |
+| 🟢 **Low** | Observability | Integrate Portkey/Helicone for deep tool-calling telemetry and agent tracking. |
+| 🟢 **Low** | CI/CD Eval | Integrate Promptfoo pre-prod testing and setup DeepEval for context drift alerts. |
