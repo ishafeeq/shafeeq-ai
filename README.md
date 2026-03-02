@@ -11,14 +11,6 @@
 
 ---
 
-## 📖 About the Author & Project Intent
-
-I am a **Distributed Cloud Systems Engineer** with **9+ years of experience** at tier-1 tech companies (**Amazon (Hyderabad in last-mile, Canada in Alexa)**, **MakeMyTrip**, and **WalmartLabs**). Throughout my career, I've designed, scaled, and hardened highly concurrent, distributed microservices handling massive throughput. 
-
-**Bol AI** represents my strategic transition into **Principal / Architect AI Engineering**. 
-
-This is not a thin wrapper over an OpenAI API call. This is a fully orchestrated **Multi-Agent Directed Acyclic Graph (DAG)** built upon enterprise architectural principles. I built this to demonstrate how to bridge the gap between "prototype AI" and "production AI" by applying rigorous software engineering guardrails—such as deterministic routing strategies, cost-control context windowing, robust structured logging, and concurrency separation.
-
 ## 🎯 What is Bol AI?
 
 **Bol AI** is an intelligent, voice-first AI assistant optimized explicitly for the Indian context (understanding and speaking **Hinglish/Hindi** seamlessly). 
@@ -125,4 +117,15 @@ As documented in [`Next-Steps.md`](./documentation/Next-Steps.md), transitioning
 - **Aggressive Rate Limiting**: Injecting `slowapi` on endpoints coupled with Nginx `limit_req_zone` memory banks to mitigate DDoS and localized API key abuse vectors. 
 
 ---
+
+## 📖 About the Author & Project Intent
+
+I am a **Distributed Cloud Systems Engineer** with **9+ years of experience** at tier-1 tech companies (**Amazon (Hyderabad in last-mile, Canada in Alexa)**, **MakeMyTrip**, and **WalmartLabs**). Throughout my career, I've designed, scaled, and hardened highly concurrent, distributed microservices handling massive throughput. 
+
+**Bol AI** represents my strategic transition into **Principal / Architect AI Engineering**. 
+
+This is not a thin wrapper over an OpenAI API call. This is a fully orchestrated **Multi-Agent Directed Acyclic Graph (DAG)** built upon enterprise architectural principles. I built this to demonstrate how to bridge the gap between "prototype AI" and "production AI" by applying rigorous software engineering guardrails—such as deterministic routing strategies, cost-control context windowing, robust structured logging, and concurrency separation.
+
+---
+
 _Bol AI is actively maintained as a flagship demonstration of full-stack AI Engineering best practices. For architectural inquiries or discussions regarding Principal opportunities, please review the `/documentation` specs or explore the repository commits._
