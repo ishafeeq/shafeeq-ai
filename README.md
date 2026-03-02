@@ -1,6 +1,9 @@
-# Bol AI — Jeetu Code Assistant 🚀
+# SAI — AI Research Assistant 🚀
 > **An Enterprise-Grade, Hinglish Voice-Native Generative AI Agent**
 
+[![GPT-OSS-20B](https://img.shields.io/badge/LLM-GPT--OSS_20B-green?style=for-the-badge)](https://groq.com/)
+[![GPT-OSS-120B](https://img.shields.io/badge/LLM-GPT--OSS_120B-blue?style=for-the-badge)](https://groq.com/)
+[![Sarvam AI](https://img.shields.io/badge/Voice-Sarvam_AI-FF9900?style=for-the-badge)](https://sarvam.ai/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1C1C1C?style=for-the-badge&logo=langchain)](https://python.langchain.com/v0.1/docs/langgraph/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
