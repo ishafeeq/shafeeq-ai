@@ -124,7 +124,7 @@ FastAPI's built-in `Depends()` is used for injecting:
 - `auth.get_current_user` → authenticated user object decoded from JWT
 
 ```python
-@router.post("/chat/text", response_model=schemas.Message)
+@router.post("/chat/res-text", response_model=schemas.Message)
 def chat_text(
     request: schemas.ChatRequest,
     db: Session = Depends(database.get_db),
@@ -142,7 +142,6 @@ This follows the **Inversion of Control** principle — routes declare what they
 **Where:** `stt_handler.py`
 
 `stt_handler.transcribe()` hides the complexity of:
-- Audio format conversion (`ffmpeg` subprocess for `.webm` → `.wav`)
 - Two separate API calls to Sarvam (translate + translit modes)
 - Error handling and fallback logic
 
@@ -258,7 +257,11 @@ This prevents context overflow errors while preserving as much relevant history 
 | File | Pattern(s) | Responsibility |
 |---|---|---|
 | `main.py` | Application Bootstrap | FastAPI app init, middleware, router registration |
-| `graph.py` | Chain of Responsibility, Factory, Strategy, Singleton | LangGraph AI pipeline definition and execution |
+| `graph.py` | Chain of Responsibility, Singleton | LangGraph execution wrapper and edge mapping |
+| `agents/state.py` | Value Object / TypedDict | Immutable shared pipeline structure |
+| `agents/prompts.py` | Template Method | Centralized System Prompt skeletons |
+| `agents/tools.py` | Factory | LLM and search engine instantiation |
+| `agents/nodes.py` | Strategy | Specific execution logic bound to graph edges |
 | `stt_handler.py` | Facade, Null Object | Sarvam STT wrapping + format conversion |
 | `tts_handler.py` | Facade | Sarvam TTS streaming + playback |
 | `auth.py` | Utility / Security Module | JWT creation/validation, OTP utilities |

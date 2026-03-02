@@ -6,8 +6,14 @@ class UserBase(BaseModel):
     mobile_number: str
     email: Optional[str] = None
 
+class UserUpdate(BaseModel):
+    full_name: str
+
 class MobileLogin(BaseModel):
     mobile_number: str
+
+class Msg91Token(BaseModel):
+    token: str
 
 class OTPVerify(BaseModel):
     mobile_number: str
@@ -31,16 +37,18 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 class ChatRequest(BaseModel):
+    request_id: str
     conversation_id: int
     content: str           # English translated text (from Sarvam STT translate mode)
-    translit_text: Optional[str] = None  # Hinglish transliteration (for UI, passed to graph)
-    audio_url: Optional[str] = None
-    generate_audio: bool = False
 
 class TranscribeResponse(BaseModel):
+    request_id: str
     text: str              # English translated text (for LangGraph)
-    translit_text: str     # Hinglish/Devanagari (for UI display)
     audio_url: str
+
+class TransliterateResponse(BaseModel):
+    request_id: str
+    translit_text: str     # Hinglish/Devanagari (for UI display)
 
 class MessageBase(BaseModel):
     role: str

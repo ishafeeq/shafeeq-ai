@@ -18,8 +18,8 @@ interface AuthContextType {
   loading: boolean;
   guestMode: boolean;
   setGuestMode: (mode: boolean) => void;
+  fetchUser: () => Promise<void>;
 }
-
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -61,7 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading, guestMode, setGuestMode }}>
+    <AuthContext.Provider value={{ user, token, login, logout, loading, guestMode, setGuestMode, fetchUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -40,9 +40,11 @@ FastAPI      Vite Dev Server
    ├── GET  /users/me           Auth
    ├── GET  /conversations      History
    ├── POST /conversations      History
-   ├── POST /chat/transcribe    STT only
-   ├── POST /chat/text          Text → AI → optional TTS
-   ├── POST /chat/audio         Audio full round-trip
+   ├── POST /chat/transcribe    STT (Speech-to-Text) Translation + initial state
+   ├── POST /chat/transliterate Fetch STT Transliteration (Hinglish)
+   ├── POST /chat/req-audio     Fetch Background TTS User Query Audio
+   ├── POST /chat/res-text      LangGraph AI Inference + Text Response Stream
+   ├── POST /chat/res-audio     Fetch Background TTS AI Response Audio
    └── GET  /uploads/*          Static audio files
          │
          ▼
@@ -124,7 +126,7 @@ Hinglish TTS-ready response"]
 | **API Routing** | `/api/*` → FastAPI on `localhost:8000` (strips `/api` prefix) |
 | **Frontend Routing** | `/*` → Vite on `localhost:5173` with WebSocket upgrade support |
 | **Upload Serving** | `/uploads/*` → proxied through FastAPI's static mount |
-| **Upload Size Limit** | `client_max_body_size 50M` |
+| **Upload Size Limit** | `client_max_body_size 10M` |
 | **Timeouts** | API: 300s (long AI inference), uploads: 120s |
 
 ---
@@ -145,6 +147,7 @@ Hinglish TTS-ready response"]
 ### 3.3 Authentication (`src/auth.py`, `src/routes/auth.py`)
 
 - **Mobile-first OTP flow**: User provides mobile number → OTP generated → verified → JWT issued
+  *(Note: Real MSG91 SMS gateway was implemented but removed due to DOT compliance rules. A dev bypass OTP is currently used).*
 - **JWT**: HS256 algorithm, **30-day expiry** (`python-jose`)
 - **OTP**: 6-digit, stored in DB, 5-minute expiry
 - **All protected routes** use FastAPI `Depends(auth.get_current_user)` via `OAuth2PasswordBearer`
@@ -222,7 +225,12 @@ _graph = _build_graph()   # compiled once at import time
 > [!NOTE]
 > The singleton pattern here is purely a performance optimisation — avoiding the overhead of re-compiling the graph (which involves node registration and edge validation) on every request. It is the correct and recommended approach.
 
-
+### 3.5 AI Core Modules (`src/agents/*`)
+The LangGraph pipeline components were strictly decoupled to prevent a monolithic `graph.py` collapse:
+- `agents/state.py`: Isolated TypedDict schema declaring the runtime graph state.
+- `agents/prompts.py`: Abstracted Prompt-Template Strings (`WEB`, `RAG`, `DIRECT` routing limits) ensuring LLM decoupling.
+- `agents/tools.py`: Wraps search engines (Tavily/pgvector) and LLM initializations behind generic factory patterns.
+- `agents/nodes.py`: The atomic functions carrying executing behaviors (`node_web_search`, `node_rag_search`, `node_context_filter`), mapping strictly to pipeline edges.
 
 ---
 
@@ -255,8 +263,6 @@ Audio is converted from `.webm` → `.wav` via `ffmpeg` subprocess before sendin
 | Vector storage | **pgvector** in PostgreSQL, collection: `bol_ai_docs` |
 
 Ingest is a CLI script run manually before deploying; re-runs do a full refresh (`pre_delete_collection=True`).
-
----
 
 ### 3.7 Database (PostgreSQL + pgvector)
 
@@ -312,30 +318,42 @@ Ingest is a CLI script run manually before deploying; re-runs do a full refresh 
 
 ---
 
-## 6. Chat Flow — End-to-End
+## 6. Chat Flow — End-to-End (Split Pipeline & Background Workers)
 
-### Audio Round-Trip (`POST /chat/audio`)
+To prevent UI blocking and improve user experience, the chat pipeline utilizes an in-memory Request State Manager (`request_state_manager`) and spins up threaded background workers:
+
+### Phase 1: Rapid Transcription (`POST /chat/transcribe`)
 
 ```
-1. User records audio in browser → uploads to /chat/audio
-2. stt_handler.transcribe():
-   a. [Sarvam translate] → English text (for AI reasoning)
-   b. [Sarvam translit] → Hinglish text (for UI display)
-3. User message saved to DB (messages table)
-4. graph.run_graph() → LangGraph DAG:
-   a. intent_router  → classify: WEB | RAG | DIRECT
-   b. query_refiner  → 3 optimised queries (skip if DIRECT)
-   c. web_search OR rag_search (skip if DIRECT)
-   d. context_filter → prune to 500-1000 tokens (skip if DIRECT)
-   e. research_synthesize → Hinglish TTS-ready response
-5. tts_handler.generate_audio() → [Sarvam bulbul:v3] → MP3 file
-6. AI message + audio_url saved to DB
-7. Response returned: {user_message, ai_message}
+1. User records audio in browser → uploads to `/chat/transcribe`
+2. Fast DB check: `current_user.credits_balance > 0`
+3. Application queries Sarvam STT to get English text (for AI reasoning).
+4. Instantly returns `{"request_id": "...", "translated_text": "..."}` back to UI.
+5. In parallel, a 2-node worker pool triggers background functions for transliterated text & TTS audio for the user's query.
 ```
 
-### Text Input (`POST /chat/text`)
+### Phase 2: Transliteration (`POST /chat/transliterate`)
 
-Same pipeline as above but skips step 1–2; user text is passed directly. TTS audio generation is optional (controlled by `generate_audio` flag in request).
+```
+1. UI calls `/chat/transliterate` using `request_id`.
+2. Endpoint long-polls locally until the background worker resolves the Hinglish transliterated text, immediately resolving to UI rendering.
+```
+
+### Phase 3: AI Reasoning (`POST /chat/res-text`)
+
+```
+1. Frontend immediately fires HTTP POST to `/chat/res-text` with the English text payload.
+2. User message formally saved to DB (messages table), 1 credit deducted.
+3. LangGraph DAG generates a Hinglish response and natively streams tokens `{"type": "token", "content": "..."}` directly via `StreamingResponse` to the frontend.
+4. As soon as generation completes, a background thread launches Sarvam TTS generation.
+```
+
+### Phase 4: Audio Fulfillment (`POST /chat/req-audio` & `POST /chat/res-audio`)
+
+```
+1. UI polls `/chat/req-audio` to seamlessly fetch the generated MP3 of the user's own voice query over background thread.
+2. UI polls `/chat/res-audio` to fetch the AI's generated response audio without blocking conversational reading.
+```
 
 ---
 

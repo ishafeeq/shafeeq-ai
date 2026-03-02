@@ -15,7 +15,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Billing / Credits
-    credits_balance = Column(Float, default=10.0) # Free tier
+    credits_balance = Column(Float, default=5.0) # Free tier
     plan_type = Column(String, default="free") # free, pro, enterprise
     
     conversations = relationship("Conversation", back_populates="owner")

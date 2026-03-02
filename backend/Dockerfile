@@ -14,8 +14,11 @@ RUN apt-get update && apt-get install -y \
 # Install uv for fast package management
 RUN pip install uv
 
-# Copy the entire backend directory
-COPY . .
+# Copy specific components explicitly to bypass corrupted .env permissions
+COPY src/ /app/src/
+COPY public/ /app/public/
+COPY pyproject.toml /app/
+COPY uv.lock /app/
 
 # Install dependencies into system Python environment using uv
 RUN uv pip install --system -e .

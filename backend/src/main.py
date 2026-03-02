@@ -1,10 +1,28 @@
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 import os
-from dotenv import load_dotenv
+import logging
 
-load_dotenv()
+logger = logging.getLogger(__name__)
+
+# Strict Environment Variable Validation
+REQUIRED_ENV_VARS = [
+    "DATABASE_URL", 
+    "SECRET_KEY", 
+    "SARVAM_API_KEY", 
+    "OLLAMA_BASE_URL", 
+    "TAVILY_API_KEY", 
+    "GROQ_API_KEY",
+    "OTP_AUTH_KEY"
+]
+
+for var in REQUIRED_ENV_VARS:
+    if not os.environ.get(var):
+        logger.error(f"CRITICAL: {var} environment variable is missing or empty! Startup aborted.")
+        raise ValueError(f"CRITICAL: {var} environment variable is missing or empty! Startup aborted.")
 
 from . import models
 from .database import engine
@@ -13,18 +31,18 @@ from .database import engine
 
 from .routes import auth
 
-app = FastAPI(title="Jeetu Code Assistant Backend")
+app = FastAPI(title="Bol-AI SAI Backend")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    print(f"REQUEST: {request.method} {request.url}")
+    logger.info(f"REQUEST: {request.method} {request.url}")
     try:
         response = await call_next(request)
-        print(f"RESPONSE: {response.status_code}")
+        logger.info(f"RESPONSE: {response.status_code}")
         return response
     except Exception as e:
-        print(f"CRITICAL MIDDLEWARE ERROR: {e}")
-        raise e
+        logger.exception(f"CRITICAL MIDDLEWARE ERROR: {e}")
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 # CORS
 origins = [
@@ -39,9 +57,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from fastapi.staticfiles import StaticFiles
-import os
 
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")

@@ -19,14 +19,11 @@ import argparse
 import logging
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-DATABASE_URL    = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/jeetu")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+DATABASE_URL    = os.environ["DATABASE_URL"]
+OLLAMA_BASE_URL = os.environ["OLLAMA_BASE_URL"]
 
 # File types to ingest
 SUPPORTED_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".md", ".txt", ".json", ".yaml", ".yml"}

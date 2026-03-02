@@ -1,19 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import { X, MessageSquare, Plus, Clock } from 'lucide-react';
-import type { Message } from '../api/chat';
+import type { Conversation } from '../api/chat';
 
 interface ChatSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  messages: Message[];
   onNewChat: () => void;
+  conversations?: Conversation[];
+  onSelectConversation?: (id: number) => void;
+  currentConversationId?: number | null;
 }
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   isOpen,
   onClose,
-  messages,
   onNewChat,
+  conversations,
+  onSelectConversation,
+  currentConversationId,
 }) => {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -28,10 +32,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen, onClose]);
 
-  // Group messages into a single "current conversation" preview
-  const userMessages = messages.filter((m) => m.role === 'user');
-  const preview = userMessages[0]?.content?.slice(0, 50) || 'New conversation';
-
+  // Group messages logic eliminated since history is passed down directly
   return (
     <>
       {/* Backdrop */}
@@ -97,32 +98,40 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
         {/* Conversations list */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          <p className="text-zinc-600 text-xs uppercase tracking-widest px-2 py-1 font-medium">Today</p>
+          <p className="text-zinc-600 text-xs uppercase tracking-widest px-2 py-1 font-medium">Recent</p>
 
-          {messages.length > 0 ? (
-            <button
-              className="w-full text-left px-3 py-3 rounded-xl transition-all duration-150 group"
-              style={{
-                background: 'rgba(59,130,246,0.08)',
-                border: '1px solid rgba(59,130,246,0.15)',
-              }}
-            >
-              <div className="flex items-start gap-2.5">
-                <div
-                  className="mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(59,130,246,0.15)' }}
-                >
-                  <MessageSquare size={13} className="text-blue-400" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-zinc-200 text-xs font-medium truncate">{preview}…</p>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <Clock size={10} className="text-zinc-600" />
-                    <span className="text-zinc-600 text-xs">{messages.length} messages</span>
+          {conversations && conversations.length > 0 ? (
+            conversations.map(conv => (
+              <button
+                key={conv.id}
+                onClick={() => {
+                  if (onSelectConversation) onSelectConversation(conv.id);
+                }}
+                className="w-full text-left px-3 py-3 rounded-xl transition-all duration-150 group"
+                style={{
+                  background: currentConversationId === conv.id ? 'rgba(59,130,246,0.15)' : 'transparent',
+                  border: currentConversationId === conv.id ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+                }}
+              >
+                <div className="flex items-start gap-2.5">
+                  <div
+                    className="mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'rgba(59,130,246,0.15)' }}
+                  >
+                    <MessageSquare size={13} className="text-blue-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-zinc-200 text-xs font-medium truncate">
+                      {conv.title && conv.title !== "New Chat" ? conv.title : (conv.messages?.[0]?.content?.substring(0, 30) || `Conversation ${conv.id}`)}
+                    </p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Clock size={10} className="text-zinc-600" />
+                      <span className="text-zinc-600 text-[10px]">{new Date(conv.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </button>
+              </button>
+            ))
           ) : (
             <div className="text-center py-12">
               <MessageSquare size={28} className="text-zinc-700 mx-auto mb-3" />
@@ -134,7 +143,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
         {/* Footer branding */}
         <div
-          className="px-5 py-4"
+          className="px-5 py-4 flex flex-col gap-1"
           style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}
         >
           <div className="flex items-center gap-2">
@@ -142,13 +151,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               className="w-6 h-6 rounded-full flex items-center justify-center"
               style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' }}
             >
-              <span className="text-white text-xs font-bold">B</span>
+              <span className="text-white text-xs font-bold">S</span>
             </div>
             <div>
-              <p className="text-white text-xs font-semibold">Bol AI</p>
-              <p className="text-zinc-600 text-xs">GPT-OSS Core</p>
+              <p className="text-white text-xs font-semibold">Shafeeq-AI</p>
+              <p className="text-zinc-600 text-[10px]">GPT-OSS Core</p>
             </div>
           </div>
+          <p className="text-zinc-500 text-[10px] mt-1 ml-1">
+            Developed by <a href="https://shafeeq.dev" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">Shafeequl Islam</a>
+          </p>
         </div>
       </div>
     </>

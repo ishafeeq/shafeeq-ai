@@ -18,6 +18,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
   const wavRecorder = useRef<WavRecorder | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioPlayer = useRef<HTMLAudioElement | null>(null);
+  const lastPlayedMsgRef = useRef<number | null>(null);
 
   // Initialize audio player
   useEffect(() => {
@@ -41,11 +42,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
   // Auto-play new assistant messages
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
-    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.audio_url && !playingMsgId) {
+    if (lastMsg && lastMsg.role === 'assistant' && lastMsg.audio_url && !playingMsgId && lastMsg.id !== lastPlayedMsgRef.current) {
+        lastPlayedMsgRef.current = lastMsg.id;
         playAudio(lastMsg.audio_url, lastMsg.id);
     }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isProcessing]);
+  }, [messages, isProcessing, playingMsgId]);
 
 
   const playAudio = (url: string, msgId: number) => {
@@ -106,9 +108,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
 
   const stopRecording = async () => {
     if (wavRecorder.current && isRecording) {
-      const audioBlob = await wavRecorder.current.stop();
+      const { blob, duration } = await wavRecorder.current.stop();
       setIsRecording(false);
-      await sendAudio(audioBlob);
+      await sendAudio(blob, duration);
     }
   };
 

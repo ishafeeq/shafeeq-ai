@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import { Play, Pause, Volume2 } from 'lucide-react';
+import { Play, Pause, Volume2, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { Message } from '../api/chat';
 
 interface ConversationHistoryProps {
   messages: Message[];
   playingMsgId: number | null;
   onPlayAudio: (url: string, id: number) => void;
+  isTyping?: boolean;
 }
 
 const parseContent = (content: string) => {
@@ -19,8 +21,10 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
   messages,
   playingMsgId,
   onPlayAudio,
+  isTyping,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -30,8 +34,8 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6 pb-32">
-        <p className="text-zinc-500 text-sm max-w-xs text-center leading-relaxed">
-          Press the mic button below and speak in Hindi, English, or Hinglish
+        <p className="text-zinc-500 text-sm max-w-sm text-center leading-relaxed">
+          Main Nisha hoon, aapki AI dost. Hindi ho ya English, mujhse aap apni natural language mein baat kar sakte hain. Bas mic button daba ke rakhiye aur boliye!
         </p>
         <div className="flex flex-wrap gap-2 justify-center">
           {['🎙️ Hinglish', '🔍 Web Search', '🧠 RAG', '🔊 Voice Reply'].map((f) => (
@@ -53,7 +57,9 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
       {messages.map((msg, idx) => {
         const { thinkingProcess, finalAnswer } = parseContent(msg.content);
         const isUser = msg.role === 'user';
-        const isVoice = isUser && !!msg.translit_text;
+        const isVoice = isUser && (msg.is_voice || !!msg.translit_text);
+        const isLastMessage = idx === messages.length - 1;
+        const showCursor = isLastMessage && !isUser && isTyping;
 
         return (
           <div
@@ -72,7 +78,7 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
             )}
 
             <div
-              className="max-w-[78%] rounded-2xl px-5 py-3.5 relative"
+              className="max-w-[90%] rounded-3xl px-8 py-6 relative"
               style={
                 isUser
                   ? {
@@ -104,32 +110,14 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
                 </details>
               )}
 
-              {/* Voice message: Hinglish main + English italic */}
-              {isVoice ? (
-                <div>
-                  <p className="text-white text-sm leading-relaxed font-medium">
-                    {msg.translit_text}
-                  </p>
-                  <p className="text-blue-200/60 text-xs italic mt-1 leading-relaxed">
-                    {msg.content}
-                  </p>
-                </div>
-              ) : (
-                <p
-                  className="text-sm leading-relaxed whitespace-pre-wrap"
-                  style={{ color: isUser ? '#fff' : '#d4d4d8' }}
-                >
-                  {finalAnswer || msg.content}
-                </p>
-              )}
-
-              {/* Audio play button for assistant */}
-              {!isUser && msg.audio_url && (
+              {/* Audio play button for assistant and user (Moved to Top) */}
+              {(!isUser || isVoice) && (
                 <button
-                  onClick={() => onPlayAudio(msg.audio_url!, msg.id)}
-                  className="mt-2.5 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all duration-200"
+                  onClick={() => msg.audio_url ? onPlayAudio(msg.audio_url, msg.id) : undefined}
+                  disabled={!msg.audio_url}
+                  className={`mb-4 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all duration-200 ${!msg.audio_url ? 'opacity-50 cursor-not-allowed' : ''}`}
                   style={
-                    playingMsgId === msg.id
+                    playingMsgId === msg.id && msg.audio_url
                       ? { background: 'rgba(52,211,153,0.15)', color: '#34d399', border: '1px solid rgba(52,211,153,0.25)' }
                       : { background: 'rgba(255,255,255,0.05)', color: '#71717a', border: '1px solid rgba(255,255,255,0.08)' }
                   }
@@ -138,6 +126,39 @@ export const ConversationHistory: React.FC<ConversationHistoryProps> = ({
                   <Volume2 size={11} />
                   {playingMsgId === msg.id ? 'Pause' : 'Play'}
                 </button>
+              )}
+
+              {/* Voice message: Hinglish main + English italic */}
+              {isVoice ? (
+                <div>
+                  <p className="text-white text-xl leading-relaxed font-medium min-h-[1.75rem]">
+                    {msg.translit_text || '\u00A0'}
+                  </p>
+                  <p className="text-blue-200/60 text-sm italic mt-3 leading-relaxed min-h-[1.25rem]">
+                    {msg.content || '\u00A0'}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p
+                    className="text-xl leading-relaxed whitespace-pre-wrap inline-block"
+                    style={{ color: isUser ? '#fff' : '#d4d4d8' }}
+                  >
+                    {finalAnswer || msg.content}
+                    {showCursor && (
+                      <span className="ml-[2px] mb-[-2px] inline-block w-2h-5 bg-blue-400 animate-pulse" style={{ height: '1.2em', width: '0.4em', verticalAlign: 'middle' }} />
+                    )}
+                  </p>
+                  {(finalAnswer || msg.content).includes('Insufficient credits') && (
+                    <button
+                      onClick={() => navigate('/profile')}
+                      className="mt-4 flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                      <CreditCard size={16} />
+                      Buy Credits
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
