@@ -8,7 +8,10 @@ from .tools import _llm, _extract_json, _recent_context, _tavily_search, _pgvect
 logger = logging.getLogger(__name__)
 
 # Core Model Config
-GUARDRAIL_MODEL = "llama-3.3-70b-versatile"
+# Core Model Config - Pulled from docker-compose.yml
+import os
+GUARDRAIL_MODEL = os.environ.get("GROQ_GUARDRAIL_MODEL", "openai/gpt-oss-20b")
+logger.info(f"[LLM_CONFIG] Guardrail Model: {GUARDRAIL_MODEL}")
 
 def node_intent_router(state: BolState) -> dict:
     last_human = next(
@@ -72,14 +75,14 @@ def node_query_refiner(state: BolState) -> dict:
     return {"search_queries": queries}
 
 
-def node_web_search(state: BolState) -> dict:
+async def node_web_search(state: BolState) -> dict:
     queries = state.get("search_queries", [])
-    raw     = _tavily_search(queries)
+    raw     = await _tavily_search(queries)
     logger.info(f"[WebSearch] Retrieved {len(raw)} chars")
     return {"raw_context": raw}
 
 
-def node_rag_search(state: BolState) -> dict:
+async def node_rag_search(state: BolState) -> dict:
     queries = state.get("search_queries", [])
     raw     = _pgvector_search(queries)
     logger.info(f"[RAG] Retrieved {len(raw)} chars")

@@ -1,259 +1,52 @@
 #!/bin/bash
 
-# Enable job control
-set -m
+# Enable strict mode
+set -e
 
-# Function to kill existing processes on ports
-kill_port() {
-    PORT=$1
-    PID=$(lsof -ti :$PORT)
-    if [ -n "$PID" ]; then
-        echo "Killing process $PID on port $PORT..."
-        kill -9 $PID 2>/dev/null
-    fi
-}
+# Exit immediately if a command exits with a non-zero status
+trap 'echo -e "\n❌ Deployment failed!"; exit 1' ERR
 
-# Function to handle cleanup on exit
-cleanup() {
-    echo ""
-    echo "Stopping all services..."
-    if [ -n "$BACKEND_PID" ]; then kill $BACKEND_PID 2>/dev/null; fi
-    if [ -n "$NGINX_PID" ]; then kill $NGINX_PID 2>/dev/null; fi
-    kill_port 8000
-    kill_port 8080
-    kill_port 8443
-    exit
-}
+echo "=========================================================="
+echo "🚀 Syncing and Deploying Bol AI to AWS Cloud 🚀"
+echo "=========================================================="
 
-trap cleanup SIGINT EXIT
+# AWS Connection Details
+AWS_KEY="/Users/shafeeq/Documents/01-New-Job/Prep/ai-serv/my-aws-server-key.pem"
+AWS_USER="ubuntu"
+AWS_HOST="ec2-16-170-206-204.eu-north-1.compute.amazonaws.com"
+REMOTE_DIR="~/bol-ai-deployment"
 
-echo "Starting Bol AI in PRODUCTION mode..."
-
-# Pre-flight cleanup
-echo "[Setup] Performing pre-flight cleanup..."
-kill_port 8000
-kill_port 5173
-kill_port 8080
-kill_port 8443
-
-# 0. Pre-flight Checks -> SSL Certs
-echo "[Setup] Checking SSL certificates..."
-mkdir -p nginx/certs
-if [ ! -f "nginx/certs/selfsigned.crt" ] || [ ! -f "nginx/certs/selfsigned.key" ]; then
-    echo "Generating self-signed SSL certificate..."
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout nginx/certs/selfsigned.key \
-        -out nginx/certs/selfsigned.crt \
-        -subj "/C=IN/ST=Telangana/L=Hyderabad/O=Jeetu/OU=Dev/CN=localhost" 2>/dev/null
-    echo "Certificate generated."
-else
-    echo "SSL certificates found."
+# Ensure AWS key exists
+if [ ! -f "$AWS_KEY" ]; then
+    echo "❌ Error: AWS Key not found at $AWS_KEY"
+    exit 1
 fi
 
-# Check/Start Docker Postgres
-if command -v docker &> /dev/null; then
-    # Check if Docker daemon is running
-    if ! docker info > /dev/null 2>&1; then
-        echo "Error: Docker daemon is not running. Please start Docker (or Colima) and try again."
-        exit 1
-    fi
+# Ensure correct permissions on key
+chmod 400 "$AWS_KEY"
 
-    if ! docker ps | grep -q "jeetu-postgres"; then
-        echo "Starting Postgres container..."
-        docker start jeetu-postgres 2>/dev/null || \
-        docker run --name jeetu-postgres -e POSTGRES_USER=user -e POSTGRES_PASSWORD=password -e POSTGRES_DB=jeetu -p 5433:5432 -d pgvector/pgvector:pg16
-        
-        echo "Waiting for Postgres to be ready..."
-        sleep 4
-        # Enable pgvector extension
-        docker exec jeetu-postgres psql -U user -d jeetu -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
-    else
-        echo "Postgres container is running."
-        # Ensure extension is enabled (idempotent)
-        docker exec jeetu-postgres psql -U user -d jeetu -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
-    fi
-fi
+# 1. Prepare Remote Directory
+echo "\n[1/3] Preparing remote deployment directory..."
+ssh -i "$AWS_KEY" -o StrictHostKeyChecking=no "${AWS_USER}@${AWS_HOST}" "mkdir -p ${REMOTE_DIR}"
 
-# Check for --init-db flag
-if [[ "$1" == "--init-db" ]]; then
-    echo "Initializing Database..."
-    cd backend
-    
-    # Try uv first, if it fails, try manual venv
-    if command -v uv &> /dev/null && uv run python -m src.init_db; then
-        echo "Database initialized via uv."
-    elif [ -d "venv" ] || [ -d ".venv" ]; then
-        echo "uv failed or not found. Trying manual venv..."
-        if [ -d ".venv" ]; then source .venv/bin/activate; else source venv/bin/activate; fi
-        python3 -m src.init_db
-    else
-        echo "Fall back to system python..."
-        python3 -m src.init_db
-    fi
-    
-    if [ $? -ne 0 ]; then
-        echo "Error: Database initialization failed!"
-        exit 1
-    fi
-    
-    cd ..
-    echo "Database initialized."
-fi
+# 2. Sync Codebase using Rsync
+echo "\n[2/3] Synchronizing codebase to AWS EC2 via Rsync..."
+rsync -avz --progress \
+    -e "ssh -i '$AWS_KEY' -o StrictHostKeyChecking=no" \
+    --exclude 'node_modules/' \
+    --exclude 'venv/' \
+    --exclude '.venv/' \
+    --exclude '__pycache__/' \
+    --exclude '.git/' \
+    --exclude '.DS_Store' \
+    --exclude 'build/' \
+    --exclude '.env' \
+    ./ "${AWS_USER}@${AWS_HOST}:${REMOTE_DIR}/"
 
-# 1. Start Backend (Gunicorn + Uvicorn Workers)
-echo "[Backend] Starting Gunicorn with 4 workers..."
-cd backend
+# 3. Execute Cloud Deployment Script
+echo "\n[3/3] Executing deployment on AWS Cloud..."
+ssh -i "$AWS_KEY" -o StrictHostKeyChecking=no "${AWS_USER}@${AWS_HOST}" "cd ${REMOTE_DIR} && chmod +x deploy_on_cloud.sh && chmod +x setup_cloud_proxy.sh && ./deploy_on_cloud.sh"
 
-# Ensure gunicorn is installed
-if command -v uv &> /dev/null; then
-    echo "Using uv to run backend..."
-    if ! uv pip show gunicorn &>/dev/null; then
-        echo "Installing gunicorn via uv..."
-        uv add gunicorn
-    fi
-    # Run via uv
-    uv run gunicorn src.main:app \
-        --workers 4 \
-        --worker-class uvicorn.workers.UvicornWorker \
-        --bind 0.0.0.0:8000 \
-        --timeout 120 \
-        --access-logfile - \
-        --error-logfile - &
-    BACKEND_PID=$!
-else
-    # Fallback to pip/venv
-    if [ ! -d ".venv" ] && [ ! -d "venv" ]; then
-        echo "Virtual environment not found! Run ./deploy_dev.sh first to set up dev env."
-        exit 1
-    fi
-    # Activate venv
-    if [ -d ".venv" ]; then source .venv/bin/activate; else source venv/bin/activate; fi
-    
-    if ! pip show gunicorn &>/dev/null; then
-        echo "Installing gunicorn via pip..."
-        pip install gunicorn
-    fi
-    
-    gunicorn src.main:app \
-        --workers 4 \
-        --worker-class uvicorn.workers.UvicornWorker \
-        --bind 0.0.0.0:8000 \
-        --timeout 120 \
-        --access-logfile - \
-        --error-logfile - &
-    BACKEND_PID=$!
-fi
-cd ..
-
-# 2. Build Frontend (Vite)
-echo "[Setup] Preparing uploads directory..."
-mkdir -p backend/uploads
-chmod 777 backend/uploads
-
-echo "[Frontend] Building production assets..."
-cd frontend
-if [ ! -d "node_modules" ]; then
-    npm install
-fi
-npm run build
-cd ..
-
-# 3. Start Nginx (serving frontend dist/ + proxying backend)
-echo "[Nginx] Starting production reverse proxy..."
-
-# Check for ffmpeg (Required for audio processing)
-if ! command -v ffmpeg &> /dev/null; then
-    echo "Warning: ffmpeg is not installed. Audio uploads (e.g. webm) may fail if Sarvam AI doesn't support the format directly."
-    echo "To fix: brew install ffmpeg"
-else
-    echo "ffmpeg found."
-fi
-
-# Generate prod config dynamically
-mkdir -p nginx
-mkdir -p nginx/temp
-chmod 777 nginx/temp
-
-cat > nginx/nginx.prod.conf <<EOF
-worker_processes  1;
-events {
-    worker_connections  1024;
-}
-http {
-    include       mime.types;
-    default_type  application/octet-stream;
-    
-    # Increase upload size limit for audio files
-    client_max_body_size 50M;
-    # Explicit temp path to avoid permission issues
-    client_body_temp_path $(pwd)/nginx/temp;
-    
-    sendfile        on;
-    keepalive_timeout  65;
-
-    # SSL configuration (same as dev)
-    server {
-        listen       8443 ssl;
-        server_name  localhost;
-
-        ssl_certificate      $(pwd)/nginx/certs/selfsigned.crt;
-        ssl_certificate_key  $(pwd)/nginx/certs/selfsigned.key;
-
-        # 1. Serve Frontend Build (Static)
-        location / {
-            root   $(pwd)/frontend/dist;
-            index  index.html;
-            try_files \$uri \$uri/ /index.html;  # SPA fallback
-        }
-
-        # 2. Proxy API to Backend
-        location /api/ {
-            proxy_pass http://127.0.0.1:8000/;  # Gunicorn port (trailing slash needed to strip /api prefix?)
-            # Wait, FastAPI strips /api automatically? No, in deploy_dev.sh /api mounts to /
-            # If backend is on 8000/, then http://127.0.0.1:8000/users/me works.
-            # If request is /api/users/me, proxy_pass http://127.0.0.1:8000/ will map to /users/me nicely.
-            
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade \$http_upgrade;
-            proxy_set_header Connection "upgrade";
-            proxy_set_header Host \$host;
-            proxy_cache_bypass \$http_upgrade;
-            
-            # Helper headers
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto \$scheme;
-
-            # Long timeout for AI generation
-            proxy_read_timeout 300s;
-        }
-
-        # 3. Serve Uploads (Directly from disk)
-        location /uploads/ {
-            alias $(pwd)/backend/uploads/;
-            autoindex off;
-        }
-    }
-
-    # Redirect HTTP to HTTPS
-    server {
-        listen 8080;
-        server_name localhost;
-        return 301 https://\$host:8443\$request_uri;
-    }
-}
-EOF
-
-nginx -c "$(pwd)/nginx/nginx.prod.conf" -g "daemon off;" &
-NGINX_PID=$!
-
-echo ""
-echo "==========================================================="
-echo "   PRODUCTION Stack is running!"
-echo "   > URL: https://localhost:8443"
-echo "   Backend running on Gunicorn (4 workers)"
-echo "   Frontend serving static files from dist/"
-echo "   PID: Backend=$BACKEND_PID Nginx=$NGINX_PID"
-echo "==========================================================="
-
-wait $BACKEND_PID $NGINX_PID
+echo "=========================================================="
+echo "✅ Deployment over Rsync to AWS Successful!"
+echo "=========================================================="

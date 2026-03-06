@@ -1,0 +1,61 @@
+# jaeger-config.yml (Fixed: No Duplicate Dimensions)
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  batch:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: primary_trace_storage
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  debug:
+    verbosity: detailed
+
+connectors:
+  spanmetrics:
+    # span.kind and status.code are default in Jaeger v2 spanmetrics connector.
+    # Adding them explicitly causes a "duplicate dimension" error.
+
+extensions:
+  jaeger_storage:
+    backends:
+      primary_trace_storage:
+        memory:
+          max_traces: 10000
+    metric_backends:
+      primary_metrics_storage:
+        prometheus:
+          endpoint: http://prometheus:9090
+          normalize_calls: true
+          normalize_duration: true
+
+  jaeger_query:
+    storage:
+      traces: primary_trace_storage
+      metrics: primary_metrics_storage
+    ui:
+      config_file: /etc/jaeger/ui-config.json
+
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [jaeger_storage_exporter, spanmetrics]
+    metrics/spanmetrics:
+      receivers: [spanmetrics]
+      exporters: [prometheus]
+    metrics/otlp:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+  telemetry:
+    logs:
+      level: debug

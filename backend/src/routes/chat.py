@@ -373,4 +373,35 @@ async def get_request_audio(
             return {"audio_url": state["req_audio_url"], "request_id": request.request_id}
         await asyncio.sleep(0.1)
 
-    raise HTTPException(status_code=408, detail="User TTS Audio not found or timeout")
+class BenchmarkQuery(BaseModel):
+    text: str
+    user_id: str
+
+@router.post("/chat/benchmark")
+async def chat_benchmark(request: BenchmarkQuery):
+    """
+    Lightweight, synchronous text-in/text-out endpoint explicitly for 
+    automated benchmarking (DeepEval) without DB history or SSE streams.
+    """
+    try:
+        # Run graph natively
+        state = await run_context_graph(
+            user_id=request.user_id,
+            conversation_id=9999, # Dummy ID for stateless tests
+            user_name="Benchmark Tester",
+            user_mobile="0000000000",
+            user_text=request.text,
+            history=[],
+            translit_text=""
+        )
+        
+        # Accumulate the streamed response
+        full_text = ""
+        async for chunk in stream_synthesize(state):
+            if chunk.content:
+                full_text += chunk.content
+                
+        return {"response": full_text}
+    except Exception as e:
+        logger.error(f"[Benchmark] Failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

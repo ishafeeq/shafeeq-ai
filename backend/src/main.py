@@ -1,12 +1,39 @@
+# --- ABSOLUTE TOP: EMERGENCY OTEL SDK STABILIZATION ---
+# This MUST be before any other imports to prevent "NoneType" crashes and log pollution.
+try:
+    import opentelemetry.exporter.otlp.proto.common._internal as otlp_internal
+    _orig_encode_value = otlp_internal._encode_value
+    def _patched_encode_value(value, allow_null=False):
+        if value is None:
+            return _orig_encode_value("", allow_null=allow_null)
+        if not isinstance(value, (int, str, float, bool)):
+            return _orig_encode_value(str(value), allow_null=allow_null)
+        return _orig_encode_value(value, allow_null=allow_null)
+    otlp_internal._encode_value = _patched_encode_value
+    
+    import os
+    import logging
+    # Silence the aggressive NoneType validation warnings in the console
+    logging.getLogger("opentelemetry.attributes").setLevel(logging.ERROR)
+    # Silence Console/Logging fallbacks
+    os.environ["OTEL_LOGS_EXPORTER"] = "none"
+    os.environ["OTEL_TRACES_EXPORTER"] = "otlp"
+    os.environ["OTEL_METRICS_EXPORTER"] = "otlp"
+except Exception:
+    pass
+# ------------------------------------------------------
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
-import os
 import logging
+import openlit
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 logger = logging.getLogger(__name__)
+
 
 # Strict Environment Variable Validation
 REQUIRED_ENV_VARS = [
@@ -68,6 +95,18 @@ app.include_router(chat.router)
 @app.get("/")
 async def root():
     return {"message": "Jeetu Code Assistant API is running"}
+
+# Initialize OpenLIT telemetry AFTER the app and routes are created,
+# so that FastAPI routes are correctly instrumented with their full paths.
+try:
+    FastAPIInstrumentor.instrument_app(app)
+    openlit.init(
+        environment="development",
+        application_name="bol-ai-backend",
+        otlp_endpoint="http://jaeger:4318"
+    )
+except Exception as e:
+    logger.error(f"Failed to initialize OpenLIT: {e}")
 
 if __name__ == "__main__":
     uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -309,7 +309,6 @@ Ingest is a CLI script run manually before deploying; re-runs do a full refresh 
 | `psycopg[binary,pool]` | ≥3.2 | PostgreSQL driver (pgvector) |
 | `pgvector` | ≥0.3 | pgvector Python bindings |
 | `python-multipart` | ≥0.0.9 | File upload support |
-| `python-dotenv` | ≥1.2 | `.env` config loading |
 | `requests` | ≥2.32 | HTTP client (TTS streaming) |
 | `sounddevice` | ≥0.4 | Audio playback (local dev) |
 | `soundfile` | ≥0.12 | Audio file I/O |

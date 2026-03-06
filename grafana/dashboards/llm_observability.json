@@ -1,0 +1,150 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Token Consumption Counters (Cumulative)",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(gen_ai_client_token_usage_sum) by (gen_ai_request_model)",
+          "legendFormat": "{{gen_ai_request_model}} - Total"
+        },
+        {
+          "expr": "sum(gen_ai_usage_input_tokens_sum) by (gen_ai_request_model)",
+          "legendFormat": "{{gen_ai_request_model}} - input"
+        },
+        {
+          "expr": "sum(gen_ai_usage_output_tokens_sum) by (gen_ai_request_model)",
+          "legendFormat": "{{gen_ai_request_model}} - output"
+        }
+      ]
+    },
+    {
+      "title": "Avg Tokens per Request",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "interval": "5m",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(gen_ai_client_token_usage_sum[$__rate_interval])) by (gen_ai_request_model) / sum(increase(gen_ai_client_operation_duration_seconds_count[$__rate_interval])) by (gen_ai_request_model)",
+          "legendFormat": "Avg Total tokens / total time - {{gen_ai_request_model}}"
+        }
+      ]
+    },
+    {
+      "title": "Latency per Model (OSS-20B vs OSS-120B)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(gen_ai_client_operation_duration_seconds_bucket[$__rate_interval])) by (le, gen_ai_request_model))",
+          "legendFormat": "{{gen_ai_request_model}} (P95)"
+        }
+      ]
+    },
+    {
+      "title": "TTFT per Model (OSS-20B vs OSS-120B)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(gen_ai_server_time_to_first_token_seconds_bucket[$__rate_interval])) by (le, gen_ai_request_model))",
+          "legendFormat": "{{gen_ai_request_model}} (P95)"
+        }
+      ]
+    },
+    {
+      "title": "End-to-End API Latency (/res-text)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{span_name=\"POST /chat/res-text\"}[$__rate_interval])) by (le))",
+          "legendFormat": "API Server (/res-text) P90"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Bol AI - LLM Observability",
+  "uid": "bol_ai_llm_obs",
+  "version": 4,
+  "weekStart": ""
+}

@@ -6,10 +6,47 @@ set -e
 # Cleanup on Ctrl-C
 trap 'echo -e "\n❌❌❌ Gracefully stopping all services..."; docker-compose down; exit 0' SIGINT
 
-echo "Building and starting Docker containers in the background..."
-docker-compose up --build -d
+# Argument parsing
+COMMAND=${1:-"up"}
+SERVICE=${2:-""}
+
+case "$COMMAND" in
+  "up")
+    echo "Building and starting Docker containers..."
+    docker-compose up --build -d $SERVICE
+    ;;
+  "restart")
+    echo "Restarting service: $SERVICE"
+    docker-compose restart $SERVICE
+    ;;
+  "stop")
+    echo "Stopping service: $SERVICE"
+    docker-compose stop $SERVICE
+    ;;
+  "down")
+    echo "Stopping all services..."
+    docker-compose down
+    exit 0
+    ;;
+  "frontend")
+    echo "Starting/Restarting Frontend only..."
+    docker-compose up --build -d frontend
+    ;;
+  "stop-frontend")
+    echo "Stopping Frontend..."
+    docker-compose stop frontend
+    ;;
+  *)
+    # Default to legacy behavior if no recognized command
+    docker-compose up --build -d
+    ;;
+esac
 
 echo ""
+echo "==========================================================="
+echo "   Bol AI Docker Stack Status 🐳"
+echo "==========================================================="
+# ... (rest of IP detection logic)
 echo ""
 echo ""
 echo ""

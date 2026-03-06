@@ -48,7 +48,8 @@ from .agents.nodes import (
 logger = logging.getLogger(__name__)
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-SYNTHESIZER_MODEL = "llama-3.3-70b-versatile"
+SYNTHESIZER_MODEL = os.environ.get("GROQ_SYNTHESIZER_MODEL", "openai/gpt-oss-120b")
+logger.info(f"[LLM_CONFIG] Synthesizer Model: {SYNTHESIZER_MODEL}")
 CURRENT_DATE = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
 # ── Routing edges ─────────────────────────────────────────────────────────────

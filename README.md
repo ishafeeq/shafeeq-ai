@@ -109,6 +109,27 @@ DEV_HARDCODED_OTP=your_otp_bypass
 
 ---
 
+## 📊 Benchmarking & Baseline Evaluation (DeepEval + OpenLIT)
+
+This project uses **OpenLIT** (for OTEL latency/cost tracking via Jaeger) and **DeepEval** (LLM-as-a-judge) to algorithmically measure the accuracy and performance of the architecture.
+
+To run the local benchmarks:
+1. Navigate to the testing directory:
+   ```bash
+   cd backend/tests/evaluation
+   ```
+2. Generate the "Golden Dataset" (100 test queries):
+   ```bash
+   python generate_dataset.py
+   ```
+3. Run the DeepEval test suite against your local `bol-ai-backend` container:
+   ```bash
+   python run_benchmarks.py
+   ```
+4. View your exact Latency and LLM Cost metrics in the Jaeger UI at `http://localhost:16686`.
+
+---
+
 ## 🚀 Forward Roadmap (Principal Horizon)
 
 As documented in [`Next-Steps.md`](./documentation/Next-Steps.md), transitioning this from a robust portfolio to a globally scalable SaaS entails:

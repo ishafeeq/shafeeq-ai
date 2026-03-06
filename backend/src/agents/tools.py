@@ -30,24 +30,35 @@ def _llm(model: str, temperature: float = 0) -> ChatGroq:
         raise RuntimeError("GROQ_API_KEY is not set. Add it to backend/secrets")
     return ChatGroq(api_key=GROQ_API_KEY, model=model, temperature=temperature)
 
-def _tavily_search(queries: List[str]) -> str:
-    """Run up to 3 Tavily searches and concatenate raw results."""
+async def _tavily_search(queries: List[str]) -> str:
+    """Run up to 3 Tavily searches in parallel and concatenate raw results."""
+    import asyncio
     try:
+        logger.info(f"[WebSearch] Calling Tavily API in parallel for queries: {queries[:3]}")
         client = TavilyClient(TAVILY_API_KEY)
-        all_results = []
-        for q in queries[:3]:
-            result = client.search(
+        
+        async def fetch_search(q):
+            return await asyncio.to_thread(
+                client.search,
                 query=q,
                 include_answer="basic",
                 search_depth="advanced",
-                max_results=3,
+                max_results=3
             )
+
+        tasks = [fetch_search(q) for q in queries[:3]]
+        results = await asyncio.gather(*tasks)
+        
+        all_results = []
+        for i, result in enumerate(results):
+            q = queries[i]
             answer   = result.get("answer", "")
             snippets = "\n".join(
                 f"[{r.get('title','')}] {r.get('content','')[:300]}"
                 for r in result.get("results", [])[:3]
             )
             all_results.append(f"Query: {q}\nAnswer: {answer}\n{snippets}")
+            
         return "\n\n---\n\n".join(all_results)
     except Exception as e:
         logger.error(f"[WebSearch] Tavily error: {e}")
