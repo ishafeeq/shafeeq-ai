@@ -43,7 +43,8 @@ REQUIRED_ENV_VARS = [
     "OLLAMA_BASE_URL", 
     "TAVILY_API_KEY", 
     "GROQ_API_KEY",
-    "OTP_AUTH_KEY"
+    "OTP_AUTH_KEY",
+    "LITELLM_MASTER_KEY"
 ]
 
 for var in REQUIRED_ENV_VARS:
@@ -99,7 +100,26 @@ async def root():
 # Initialize OpenLIT telemetry AFTER the app and routes are created,
 # so that FastAPI routes are correctly instrumented with their full paths.
 try:
-    FastAPIInstrumentor.instrument_app(app)
+    def server_request_hook(span, scope):
+        if span and span.is_recording():
+            pass # We let the default ASGI instrumentor handle this
+
+    def client_response_hook(span, scope, message):
+        if span and span.is_recording():
+            if message and message.get("type") == "http.response.start":
+                status = message.get("status")
+                if status is not None:
+                    span.set_attribute("http.status_code", status)
+                    from opentelemetry.trace.status import Status, StatusCode
+                    if status >= 400:
+                        span.set_status(Status(StatusCode.ERROR))
+                    else:
+                        span.set_status(Status(StatusCode.OK))
+
+    FastAPIInstrumentor.instrument_app(
+        app, 
+        client_response_hook=client_response_hook
+    )
     openlit.init(
         environment="development",
         application_name="bol-ai-backend",

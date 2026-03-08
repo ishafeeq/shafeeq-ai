@@ -1,5 +1,6 @@
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, Text, Float
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 from datetime import datetime
 from .database import Base
 
@@ -55,3 +56,13 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User", back_populates="payments")
+
+class SemanticCache(Base):
+    __tablename__ = "semantic_cache"
+
+    id = Column(Integer, primary_key=True, index=True)
+    query = Column(Text, nullable=False)
+    embedding = Column(Vector(1024), nullable=False) # mxbai-embed-large dimension
+    response = Column(Text, nullable=False)
+    model = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

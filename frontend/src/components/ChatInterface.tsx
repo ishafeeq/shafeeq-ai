@@ -95,6 +95,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
   };
 
   const startRecording = async () => {
+    if (isProcessing) return;
     stopAudio(); // Stop playback when recording starts
     try {
       wavRecorder.current = new WavRecorder();
@@ -231,13 +232,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onClose }) => {
 
                     {/* Big Mic Button */}
                     <button 
-                        onMouseDown={startRecording}
-                        onMouseUp={stopRecording}
-                        onMouseLeave={stopRecording}
-                        onTouchStart={startRecording}
-                        onTouchEnd={stopRecording}
+                        disabled={isProcessing}
+                        onMouseDown={isProcessing ? undefined : startRecording}
+                        onMouseUp={isProcessing ? undefined : stopRecording}
+                        onMouseLeave={isProcessing ? undefined : stopRecording}
+                        onTouchStart={isProcessing ? undefined : startRecording}
+                        onTouchEnd={isProcessing ? undefined : stopRecording}
                         className={`rounded-full p-8 transition-all shadow-lg ${
-                        isRecording 
+                        isProcessing 
+                            ? 'bg-gray-400 text-white shadow-none opacity-50 cursor-not-allowed'
+                            : isRecording 
                             ? 'bg-red-500 text-white scale-125 shadow-red-300 animate-pulse' 
                             : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:scale-110 shadow-indigo-300'
                         }`}

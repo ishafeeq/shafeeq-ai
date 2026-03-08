@@ -17,9 +17,11 @@ services:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
       - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://prometheus:9090/api/v1/otlp/v1/metrics
       - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - LITELLM_MASTER_KEY=sk-1234
     depends_on:
       - jaeger
       - prometheus
+      - litellm
     secrets:
       - bol_sarvam_key
       - bol_tavily_key
@@ -106,9 +108,53 @@ services:
     depends_on:
       - prometheus
 
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: bol-ai-litellm
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml
+      - ./litellm/start_proxy.sh:/app/start_proxy.sh
+    secrets:
+      - bol_groq_key
+      - bol_openrouter_key
+    environment:
+      - LITELLM_LOG=INFO
+      - LITELLM_MASTER_KEY=sk-1234
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - LITELLM_MIGRATE=True
+    entrypoint: [ "/bin/sh", "/app/start_proxy.sh" ]
+    depends_on:
+      jaeger:
+        condition: service_started
+      litellm-db:
+        condition: service_healthy
+
+  litellm-db:
+    image: postgres:17-alpine
+    container_name: bol-ai-litellm-db
+    environment:
+      - POSTGRES_USER=litellm
+      - POSTGRES_PASSWORD=litellm_pass
+      - POSTGRES_DB=litellm_db
+    volumes:
+      - litellm_db_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U litellm -d litellm_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
 volumes:
   uploads_data:
   prometheus_data:
+  litellm_db_data:
 
 
 secrets:
@@ -134,3 +180,5 @@ secrets:
     file: ./secrets/bol_postgres_host.txt
   bol_dev_hardcoded_otp:
     file: ./secrets/bol_dev_hardcoded_otp.txt
+  bol_openrouter_key:
+    file: ./secrets/bol_openrouter_key.txt

@@ -231,7 +231,7 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
   const startRecording = useCallback(async (e?: Event | React.SyntheticEvent) => {
     e?.preventDefault();
     if (!user) { setShowAuthModal(true); return; }
-    if (isRecordingRef.current) return;
+    if (isRecordingRef.current || isProcessing) return;
 
     audioPlayer.current?.pause();
     setPlayingMsgId(null);
@@ -423,12 +423,13 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
 
             {/* Main button */}
             <button
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onMouseLeave={stopRecording}
-              onTouchStart={startRecording}
-              onTouchEnd={stopRecording}
-              className="relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 select-none"
+              disabled={isProcessing}
+              onMouseDown={isProcessing ? undefined : startRecording}
+              onMouseUp={isProcessing ? undefined : stopRecording}
+              onMouseLeave={isProcessing ? undefined : stopRecording}
+              onTouchStart={isProcessing ? undefined : startRecording}
+              onTouchEnd={isProcessing ? undefined : stopRecording}
+              className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 select-none ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               style={{
                 background: isRecording
                   ? 'linear-gradient(135deg, #dc2626, #ef4444)'

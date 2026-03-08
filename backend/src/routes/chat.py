@@ -304,7 +304,12 @@ async def chat_text(
             # 2. Stream LLM tokens natively to frontend
             full_text = ""
             async for chunk in stream_synthesize(state):
-                token = chunk.content
+                if isinstance(chunk, dict):
+                    # Skip metadata chunks in the main SSE stream if they don't have content
+                    logger.debug(f"[API_METADATA]: {chunk}")
+                    continue
+                    
+                token = getattr(chunk, "content", "")
                 if token:
                     full_text += token
                     logger.debug(f"[API_YIELD]: {token}")
@@ -378,7 +383,10 @@ class BenchmarkQuery(BaseModel):
     user_id: str
 
 @router.post("/chat/benchmark")
-async def chat_benchmark(request: BenchmarkQuery):
+async def chat_benchmark(
+    request: BenchmarkQuery,
+    current_user: models.User = Depends(auth.get_current_user)
+):
     """
     Lightweight, synchronous text-in/text-out endpoint explicitly for 
     automated benchmarking (DeepEval) without DB history or SSE streams.
@@ -398,10 +406,58 @@ async def chat_benchmark(request: BenchmarkQuery):
         # Accumulate the streamed response
         full_text = ""
         async for chunk in stream_synthesize(state):
-            if chunk.content:
+            if not isinstance(chunk, dict) and chunk.content:
                 full_text += chunk.content
                 
         return {"response": full_text}
     except Exception as e:
         logger.error(f"[Benchmark] Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/chat/benchmark-stream")
+async def chat_benchmark_stream(
+    request: BenchmarkQuery,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Streaming endpoint explicitly for automated benchmarking to record TTFT and Tokens natively.
+    """
+    async def event_stream():
+        try:
+            state = await run_context_graph(
+                user_id=request.user_id,
+                conversation_id=9999,
+                user_name="Benchmark Tester",
+                user_mobile="0000000000",
+                user_text=request.text,
+                history=[],
+                translit_text=""
+            )
+            
+            calls_20b = state.get("usage_20b_calls", [])
+            reasoning_level = state.get("reasoning_level", "med")
+            tavily_search_time_sec = state.get("tavily_search_time_sec", 0.0)
+
+            async for chunk in stream_synthesize(state):
+                if isinstance(chunk, dict):
+                    p120 = chunk.get("prompt_120b", 0)
+                    c120 = chunk.get("completion_120b", 0)
+                    yield f"data: {json.dumps({'type': 'usage', 'calls_20b': calls_20b, 'prompt_120b': p120, 'completion_120b': c120, 'reasoning_level': reasoning_level, 'tavily_search_time_sec': tavily_search_time_sec})}\n\n"
+                    await asyncio.sleep(0)
+                else:
+                    token = getattr(chunk, "content", "")
+                    if token:
+                        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                        await asyncio.sleep(0)
+                        
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            logger.error(f"[BenchmarkStream] Failed: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no"
+    }
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers=headers)

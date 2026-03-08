@@ -44,6 +44,7 @@ from .agents.nodes import (
     node_rag_search,
     node_context_filter,
 )
+from .cache import semantic_cache
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,13 @@ def _build_graph():
 
 _graph = _build_graph()
 
+from opentelemetry import metrics
+import time
+meter = metrics.get_meter("bol_ai_manual_tokens")
+prompt_counter = meter.create_counter("gen_ai_usage_input_tokens")
+completion_counter = meter.create_counter("gen_ai_usage_output_tokens")
+ttft_histogram = meter.create_histogram("gen_ai_server_time_to_first_token_seconds")
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def run_context_graph(
@@ -124,6 +132,8 @@ async def run_context_graph(
         "search_queries":  [],
         "raw_context":     "",
         "tool_context":    "",
+        "tavily_search_time_sec": 0.0,
+        "usage_20b_calls": [],
     }
 
     thread_id = f"user_{user_id}_conv_{conversation_id}"
@@ -142,6 +152,7 @@ async def stream_synthesize(state: dict):
     user_name = state.get("user_name", "there")
     context   = state.get("tool_context", "")
     intent    = state.get("intent", "DIRECT")
+    user_text = state.get("messages", [])[-1].content if state.get("messages") else ""
 
     system_content = _SYNTHESIZE_SYSTEM.format(
         name=user_name,
@@ -152,37 +163,78 @@ async def stream_synthesize(state: dict):
 
     synth_messages: List[BaseMessage] = [SystemMessage(content=system_content)]
     synth_messages.extend(state.get("messages", []))
-
-    from groq import AsyncGroq
-    client = AsyncGroq(api_key=GROQ_API_KEY)
     
-    # Format messages for native Groq API
-    groq_messages = []
-    for msg in synth_messages:
-        if isinstance(msg, SystemMessage):
-            groq_messages.append({"role": "system", "content": msg.content})
-        elif isinstance(msg, HumanMessage):
-            groq_messages.append({"role": "user", "content": msg.content})
-        elif isinstance(msg, AIMessage):
-            groq_messages.append({"role": "assistant", "content": msg.content})
-        else:
-            groq_messages.append({"role": "user", "content": msg.content})
-
-    stream = await client.chat.completions.create(
-        model=SYNTHESIZER_MODEL,
-        messages=groq_messages,
-        temperature=0.6,
-        stream=True
-    )
+    # ── Semantic Cache Check ──────────────────────────────────────────────────
+    cached_resp = semantic_cache.get_cached_response(user_text, SYNTHESIZER_MODEL)
     
     # Create a mock Langchain chunk object so chat.py's parsing stays identical
     class StreamChunk:
         def __init__(self, content):
             self.content = content
 
+    if cached_resp:
+        logger.info(f"[SemanticCache] Serving cached response for model {SYNTHESIZER_MODEL}")
+        yield StreamChunk(cached_resp)
+        # Yield metadata with 0 token usage for cached hits if needed, 
+        # or just skip token counting for cache.
+        yield {"prompt_120b": 0, "completion_120b": 0, "cached": True}
+        return
+
+    from openai import AsyncOpenAI
+    client = AsyncOpenAI(
+        api_key=os.environ.get("LITELLM_MASTER_KEY"), 
+        base_url="http://litellm:4000/v1"
+    )
+    
+    # Format messages for native OpenAI API
+    openai_messages = []
+    for msg in synth_messages:
+        if isinstance(msg, SystemMessage):
+            openai_messages.append({"role": "system", "content": msg.content})
+        elif isinstance(msg, HumanMessage):
+            openai_messages.append({"role": "user", "content": msg.content})
+        elif isinstance(msg, AIMessage):
+            openai_messages.append({"role": "assistant", "content": msg.content})
+        else:
+            openai_messages.append({"role": "user", "content": msg.content})
+
+    stream = await client.chat.completions.create(
+        model=SYNTHESIZER_MODEL,
+        messages=openai_messages,
+        temperature=0.6,
+        stream=True,
+        stream_options={"include_usage": True}
+    )
+    
+    start_t = time.time()
+    first_token = False
+    
+    prompt_120b = 0
+    completion_120b = 0
+    full_response_text = ""
+
     async for chunk in stream:
         if chunk.choices and len(chunk.choices) > 0:
             delta = chunk.choices[0].delta.content
             if delta:
-                logger.debug(f"[GROQ_CHUNK]: {delta}")
+                full_response_text += delta
+                if not first_token:
+                    first_token = True
+                    ttft = time.time() - start_t
+                    ttft_histogram.record(ttft, {"gen_ai_request_model": SYNTHESIZER_MODEL})
+                logger.debug(f"[OPENAI_CHUNK]: {delta}")
                 yield StreamChunk(delta)
+                
+        # OpenAI native streaming usage counts occur on the very last empty chunk block
+        if hasattr(chunk, "usage") and chunk.usage is not None:
+            prompt_120b = chunk.usage.prompt_tokens
+            completion_120b = chunk.usage.completion_tokens
+            prompt_counter.add(chunk.usage.prompt_tokens, {"gen_ai_request_model": SYNTHESIZER_MODEL})
+            completion_counter.add(chunk.usage.completion_tokens, {"gen_ai_request_model": SYNTHESIZER_MODEL})
+            logger.info(f"Recorded tokens: prompt={chunk.usage.prompt_tokens}, completion={chunk.usage.completion_tokens}")
+
+    # ── Save to Semantic Cache ────────────────────────────────────────────────
+    if full_response_text:
+        semantic_cache.set_cached_response(user_text, full_response_text, SYNTHESIZER_MODEL)
+
+    yield {"prompt_120b": prompt_120b, "completion_120b": completion_120b}

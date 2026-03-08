@@ -4,7 +4,7 @@ import json
 import logging
 from typing import List
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
 from tavily import TavilyClient
 
 logger = logging.getLogger(__name__)
@@ -25,10 +25,41 @@ OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://host.docker.internal
 CTX_LIMIT_TOKENS = 6_000
 CTX_LIMIT_CHARS = CTX_LIMIT_TOKENS * 4
 
-def _llm(model: str, temperature: float = 0) -> ChatGroq:
+from opentelemetry import metrics
+import time
+meter = metrics.get_meter("bol_ai_manual_tokens")
+prompt_counter = meter.create_counter("gen_ai_usage_input_tokens")
+completion_counter = meter.create_counter("gen_ai_usage_output_tokens")
+ttft_histogram = meter.create_histogram("gen_ai_server_time_to_first_token_seconds")
+
+class TrackedChatOpenAI(ChatOpenAI):
+    def invoke(self, *args, **kwargs):
+        start_t = time.time()
+        resp = super().invoke(*args, **kwargs)
+        ttft = time.time() - start_t
+        ttft_histogram.record(ttft, {"gen_ai_request_model": self.model_name})
+        
+        if hasattr(resp, "usage_metadata") and resp.usage_metadata:
+            usage = resp.usage_metadata
+            input_tokens = usage.get("input_tokens", 0)
+            output_tokens = usage.get("output_tokens", 0)
+            if input_tokens > 0:
+                prompt_counter.add(input_tokens, {"gen_ai_request_model": self.model_name})
+            if output_tokens > 0:
+                completion_counter.add(output_tokens, {"gen_ai_request_model": self.model_name})
+            logger.info(f"Langchain 20B tokens: prompt={input_tokens}, completion={output_tokens}")
+        return resp
+
+def _llm(model: str, temperature: float = 0) -> ChatOpenAI:
     if not GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is not set. Add it to backend/secrets")
-    return ChatGroq(api_key=GROQ_API_KEY, model=model, temperature=temperature)
+    # Route via our local LiteLLM proxy container
+    return TrackedChatOpenAI(
+        api_key=os.environ.get("LITELLM_MASTER_KEY"), 
+        model=model, 
+        temperature=temperature,
+        base_url="http://litellm:4000/v1"
+    )
 
 async def _tavily_search(queries: List[str]) -> str:
     """Run up to 3 Tavily searches in parallel and concatenate raw results."""

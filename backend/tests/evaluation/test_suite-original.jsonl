@@ -1,0 +1,59 @@
+{"query": "Analyze Θ(n²) time of double for‑loops printing i*j, factoring I/O overhead.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Rewritten Input:  \nAnalyze how ptr misuse, stack overflow, and malloc errors could cause segfault in my code.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Imagine filtering 1M items in one line; how does Python list‑comp syntax operate?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain async/await exec flow via brief example, highlighting promise handling & error propagation.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Compare pandas read_csv first‑5 rows vs Python csv module reading same rows.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Rewritten Input: Identify error in SELECT * FROM users WHERE name='John'; assess inj risk & idx usage.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "If a BST held millions of nodes, how would you code its inorder traversal efficiently?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Git rebase vs merge ka farq, conflict handling aur history cleanliness detail se explain karo.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Why doesn’t my React comp’s state update, considering async setState & useEffect constraints?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How do deep copy (dc) and shallow copy (sc) differ regarding nested objects in Python?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "**Rewritten Input:**  \nHow to create a Dockerfile for running a Node.js app, outlining essential steps?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain O(n log n) time for constructing suffix arrays via induced sorting.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Mere code mein inf-loop detect karne ke liye, bina debugger, runtime log istemal karo.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How does justify-content affect item distribution along main axis with different flex-dir settings?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "If a script auto‑generates primes 1‑100, how would you design it in Python?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Rewritten Input:\nExplain TS's utility types vs conditional types for sophisticated type transformations.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "SQL तालिका में डुप्लिकेट पंक्तियों को हटाने के लिए CTE व/ROW_NUMBER उपयोग विधि बताएं।", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Detail how JS closures capture lexical scope, with a concise code snippet.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain React useEffect dep arr, when updates occur, and compare with CC lifecycle.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Compare when to use Python lambda functions vs def functions, focusing on brevity and performance.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Analyze ASAN and static analysis to pinpoint elusive memory leaks in C++.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How do TCP's connection‑oriented reliability vs UDP's connectionless speed affect network communications?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Bash script: recurs. rename .txt→.md, preserve ts, log ops.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How does overfitting in ML arise, affect model generalization, and how can it be mitigated?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Identify typical NPE causes in Java, and propose debugging steps using IDE logs.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Contrast idempotent GET vs state‑changing POST usage in RESTful APIs.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Design a Python decorator that logs exec time, handles args, and returns original output.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain K8s pod vs svc differences, including networking model and scaling implications, concisely.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "If your SQL query took minutes, which index would you add to speed it?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Detail JS Promise concept, .then() flow, and compare error handling vs async/await usage.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Create HTML page with BS navbar, ensure ARIA compliance, include dark‑mode toggle.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain how itertools' functions enable complex iteration patterns and impact Python's performance optimization.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain how to avoid rc in mt code, ensuring dl safety & optimal perf.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How do GraphQL queries differ from mutations regarding data retrieval, side effects, and operation semantics?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Compare dept-wise AVG salary query using GROUP BY vs using window functions (OVER).", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How do pure functions in FP ensure no side effects, deterministic outputs, and referential transparency?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Compare React DevTools vs Chrome Profiler for React app perf issues?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Compare stack vs heap memory allocation: lifetimes, access speed, and management.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "If a script hit varied errors, how to write Python try‑except with mult. excepts?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain steps linking crontab syntax, timing fields, and command paths to schedule Linux cron jobs.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Rewritten Input:  \nHow do srv headers, mw config, and brw policies interact to fix CORS errors?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "If Redux state were mutable in RT, how would immutability principles affect dbg and predictability?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Java prog to print first 20 Fib nums using recursion, O(1) space, and inline comments.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Socho ek site pe attacker ne SQLi se data chura liya, kaise rokoge?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Identify cause of UnicodeDecodeError in my Python script, and propose eff handling for large files.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Detail sync vs async prog., highlighting perf. impacts, thread usage, and JS code examples.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "**Rewritten Input:**  \nCSS fade‑in animation with 0.5s delay, responsive, no JS; provide code snippet.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Explain the matrix strategy syntax for dynamic job generation in GH Actions workflow files.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "PostgreSQL DB ke JSON column se particular key ka value retrieve karne ka query syntax?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Analyze collision resolution via cuckoo hashing in DHTs.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Craft a Python fn to locale‑aware sort a str list using ICU collation.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Compare meanings of RESTful API success codes (200/201) with client‑error codes (400/401).", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "JS code me var vs let hoisting ka effect kaise observe karun? Example?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How does memoization optimize recursive Python functions, e.g., using @lru_cache example?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Imagine AI auto‑creates Flask '/' returning “Hello World”; what issues emerge?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Docker cmp file me svc ko versioning aur network cfg ke sath kaise define karein?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Compare recursion depth handling in Python vs Java, and iterative alternatives for deep recursion.", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "How does .gitignore dictate ignored patterns for Git commits, preventing unwanted file tracking?", "expected_criteria": null, "type": "complex_reasoning"}
+{"query": "Write SQL to fetch top 5 highest‑paid employees ordered by salary DESC.", "expected_criteria": null, "type": "complex_reasoning"}
