@@ -46,7 +46,7 @@ build/
 wheels/
 *.egg-info
 Backend/uploads/*
-backend/tests/evaluation/
+backend/tests/evaluation/*
 Backend/tests/evaluation/*
 
 # Virtual environments
@@ -61,6 +61,7 @@ env
 nginx/logs/*.log
 nginx/temp/*
 nginx/certs/*
+nginx/ssl.key
 
 
 # Deployment scripts

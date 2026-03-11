@@ -17,7 +17,7 @@ services:
       - GROQ_GUARDRAIL_MODEL=openai/gpt-oss-20b
       - GROQ_SYNTHESIZER_MODEL=openai/gpt-oss-120b
       - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-south-1.grafana.net/otlp
-      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20MTU1MzcwMDpnbGNfZXlKdklqb2lNVFk1TkRReU5pSXNJbTRpT2lKbWFXNWxjbUZuTFdkeVlXWmhibUVpTENKcklqb2lOelUzV2pkSlRVRk5WalpIV21SS1pEaHBiREo1T1RrMUlpd2liU0k2ZXlKeUlqb2ljSEp2WkMxaGNDMXpiM1YwYUMweEluMTk=
+      - OTEL_EXPORTER_OTLP_HEADERS_FILE=/run/secrets/bol_otel_headers
       - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
       - LITELLM_MASTER_KEY=sk-1234
     secrets:
@@ -32,6 +32,7 @@ services:
       - bol_postgres_db
       - bol_postgres_host
       - bol_dev_hardcoded_otp
+      - bol_otel_headers
     volumes:
       # Shared volume for audio uploads
       - uploads_data:/app/uploads
@@ -39,7 +40,7 @@ services:
       - "9101:8000"
     # Wait for DB, initialize schema, then start Gunicorn
     command: >
-      bash -c " export SARVAM_API_KEY=\$$(cat /run/secrets/bol_sarvam_key); export TAVILY_API_KEY=\$$(cat /run/secrets/bol_tavily_key); export GROQ_API_KEY=\$$(cat /run/secrets/bol_groq_key); export SECRET_KEY=\$$(cat /run/secrets/bol_secret_key); export OTP_AUTH_KEY=\$$(cat /run/secrets/bol_otp_auth_key); export DEV_HARDCODED_OTP=\$$(cat /run/secrets/bol_dev_hardcoded_otp); export OLLAMA_BASE_URL=\$$(cat /run/secrets/bol_ollama_base_url); export POSTGRES_USER=\$$(cat /run/secrets/bol_postgres_user); export POSTGRES_PASSWORD=\$$(cat /run/secrets/bol_postgres_pass); export POSTGRES_DB=\$$(cat /run/secrets/bol_postgres_db); export POSTGRES_HOST=\$$(cat /run/secrets/bol_postgres_host); export DATABASE_URL=\"postgresql://\$${POSTGRES_USER}:\$${POSTGRES_PASSWORD}@\$${POSTGRES_HOST}:6543/\$${POSTGRES_DB}\"; python -m src.init_db && gunicorn src.main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
+      bash -c " export SARVAM_API_KEY=\$$(cat /run/secrets/bol_sarvam_key); export TAVILY_API_KEY=\$$(cat /run/secrets/bol_tavily_key); export GROQ_API_KEY=\$$(cat /run/secrets/bol_groq_key); export SECRET_KEY=\$$(cat /run/secrets/bol_secret_key); export OTP_AUTH_KEY=\$$(cat /run/secrets/bol_otp_auth_key); export DEV_HARDCODED_OTP=\$$(cat /run/secrets/bol_dev_hardcoded_otp); export OLLAMA_BASE_URL=\$$(cat /run/secrets/bol_ollama_base_url); export POSTGRES_USER=\$$(cat /run/secrets/bol_postgres_user); export POSTGRES_PASSWORD=\$$(cat /run/secrets/bol_postgres_pass); export POSTGRES_DB=\$$(cat /run/secrets/bol_postgres_db); export POSTGRES_HOST=\$$(cat /run/secrets/bol_postgres_host); export OTEL_EXPORTER_OTLP_HEADERS=\$$(cat /run/secrets/bol_otel_headers); export DATABASE_URL=\"postgresql://\$${POSTGRES_USER}:\$${POSTGRES_PASSWORD}@\$${POSTGRES_HOST}:6543/\$${POSTGRES_DB}\"; python -m src.init_db && gunicorn src.main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
 
   frontend:
     build:
@@ -77,12 +78,13 @@ services:
     secrets:
       - bol_groq_key
       - bol_openrouter_key
+      - bol_otel_headers
     environment:
       - LITELLM_LOG=INFO
       - LITELLM_MASTER_KEY=sk-1234
       - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-south-1.grafana.net/otlp
-      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20MTU1MzcwMDpnbGNfZXlKdklqb2lNVFk1TkRReU5pSXNJbTRpT2lKbWFXNWxjbUZuTFdkeVlXWmhibUVpTENKcklqb2lOelUzV2pkSlRVRk5WalpIV21SS1pEaHBiREo1T1RrMUlpd2liU0k2ZXlKeUlqb2ljSEp2WkMxaGNDMXpiM1YwYUMweEluMTk=
-      - LITELLM_MIGRATE=True
+      - OTEL_EXPORTER_OTLP_HEADERS_FILE=/run/secrets/bol_otel_headers
+      - LITELLM_MIGRATE=False
     entrypoint: [ "/bin/sh", "/app/start_proxy.sh" ]
     depends_on:
       litellm-db:
@@ -138,3 +140,5 @@ secrets:
     file: ./secrets/bol_dev_hardcoded_otp.txt
   bol_openrouter_key:
     file: ./secrets/bol_openrouter_key.txt
+  bol_otel_headers:
+    file: ./secrets/bol_otel_headers.txt

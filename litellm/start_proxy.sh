@@ -6,6 +6,7 @@ echo "🚀 Constructing environment from Docker secrets..."
 # Strip newlines/carriage returns from secrets
 export GROQ_API_KEY=$(cat /run/secrets/bol_groq_key | tr -d '\n' | tr -d '\r')
 export OPENROUTER_API_KEY=$(cat /run/secrets/bol_openrouter_key | tr -d '\n' | tr -d '\r')
+export OTEL_EXPORTER_OTLP_HEADERS=$(cat /run/secrets/bol_otel_headers | tr -d '\n' | tr -d '\r')
 
 # Use local postgres container for LiteLLM to keep Supabase clean
 export DATABASE_URL="postgresql://litellm:litellm_pass@litellm-db:5432/litellm_db?schema=litellm_proxy"
