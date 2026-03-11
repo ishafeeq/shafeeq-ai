@@ -11,9 +11,9 @@
 
 ---
 
-## 🎯 What is Bol AI?
+## 🎯 What is SAI?
 
-**Bol AI** is an intelligent, voice-first AI assistant optimized explicitly for the Indian context (understanding and speaking **Hinglish/Hindi** seamlessly). 
+**SAI** is an intelligent, voice-first AI assistant optimized explicitly for the Indian context (understanding and speaking **Hinglish/Hindi** seamlessly). 
 The system operates as an end-to-end voice-in, voice-out assistant capable of:
 1. **Real-time Web Searching** for current events.
 2. **Retrieval-Augmented Generation (RAG)** over internal project documentation and codebases.
@@ -22,7 +22,7 @@ The system operates as an end-to-end voice-in, voice-out assistant capable of:
 ### The Flow at a Glance:
 1. **Perceive**: Audio input is captured and parallel-processed for STT translation (English for the LLM) and transliteration (Hinglish/Devanagari for the UI).
 2. **Reason**: A LangGraph orchestrator categorizes the intent (`WEB`, `RAG`, `DIRECT`), delegates task execution to sub-agents (e.g., Query Refiner, Context Filter), and synthesizes a final response.
-3. **Act**: The response is streamed to Sarvam TTS and rendered gracefully back to the user without UI layout shifts or blocking I/O threads.
+1. **Act**: The response is streamed to Sarvam TTS and rendered gracefully back to the user without UI layout shifts or blocking I/O threads.
 
 ---
 
@@ -36,6 +36,8 @@ I consciously chose patterns that maximize modularity, isolation, and horizontal
 
 ### Key Architectural Decisions:
 - **LangGraph as a Chain of Responsibility**: The 500+ line monolithic execution flow is decoupled strictly into `agents/nodes.py`, `agents/state.py`, and `agents/tools.py`. The graph object is built as a **read-only Stateless Singleton**, making it inherently thread-safe for concurrent user requests.
+- **AI Gateway via LiteLLM**: All LLM interactions are proxied through LiteLLM, providing a unified interface for model routing, load balancing, and OTLP native instrumentation.
+- **Semantic Caching with pgvector**: Implemented a high-performance semantic cache using `pgvector` and LiteLLM embeddings. It captures and reuses similar queries (95% similarity threshold), drastically reducing LLM costs and latency for redundant requests.
 - **Dual-Model Factory Pipeline**: 
   - *Fast Routing & Filtering*: Utilizes Groq's high-throughput `gpt-oss-20b` for cheap, sub-second deterministic outputs.
   - *Deep Synthesis*: Defers to `gpt-oss-120b` solely for the final user-facing generation. 
@@ -55,7 +57,9 @@ Building AI is easy; building AI that doesn't silently hallucinate away your ope
 
 **2. Observability & Tracking**
 - Replaced all raw stdout logic with the standard Python `logging` module.
-- Injected `logger` contexts across FastAPI Middleware (`main.py`), DB initializations, STT failure scopes, and Graph Routing Nodes, establishing the bedrock for upcoming Datadog / CloudWatch unified JSON tracing.
+- Integrated **OpenLIT** and **OpenTelemetry** for full-stack observability. 
+- Metrics (Token consumption, Latency, Cost) are exported to **Prometheus** and visualized in **Grafana** dashboards.
+- Traces are captured by **Jaeger** via OTLP, allowing deep inspection of LangGraph node execution and external API calls.
 - Built graceful fallback degradation: If a non-critical API (like the transliteration endpoint) times out, the system catches the exception, logs a standard `WARNING`, and falls back to translation to guarantee a successful end-user transaction.
 
 ---
@@ -111,22 +115,25 @@ DEV_HARDCODED_OTP=your_otp_bypass
 
 ## 📊 Benchmarking & Baseline Evaluation (DeepEval + OpenLIT)
 
-This project uses **OpenLIT** (for OTEL latency/cost tracking via Jaeger) and **DeepEval** (LLM-as-a-judge) to algorithmically measure the accuracy and performance of the architecture.
+This project uses **OpenLIT** (for OTEL latency/cost tracking via Jaeger/Prometheus) and **DeepEval** (LLM-as-a-judge) to algorithmically measure the accuracy and performance of the architecture.
 
 To run the local benchmarks:
 1. Navigate to the testing directory:
    ```bash
    cd backend/tests/evaluation
    ```
-2. Generate the "Golden Dataset" (100 test queries):
+2. Generate the "Golden Dataset" via DeepEval Synthesizer:
    ```bash
    python generate_dataset.py
    ```
-3. Run the DeepEval test suite against your local `bol-ai-backend` container:
+3. Run the benchmark suite against the local stack:
    ```bash
    python run_benchmarks.py
    ```
-4. View your exact Latency and LLM Cost metrics in the Jaeger UI at `http://localhost:16686`.
+4. View metrics:
+   - **Real-time Latency/Cost**: Grafana Dashboard (`http://localhost:3000`)
+   - **Distributed Traces**: Jaeger UI (`http://localhost:16686`)
+   - **Prometheus Metrics**: `http://localhost:9090`
 
 ---
 
@@ -143,10 +150,10 @@ As documented in [`Next-Steps.md`](./documentation/Next-Steps.md), transitioning
 
 I am a **Distributed Cloud Systems Engineer** with **9+ years of experience** at tier-1 tech companies (**Amazon (Hyderabad in last-mile, Canada in Alexa)**, **MakeMyTrip**, and **WalmartLabs**). Throughout my career, I've designed, scaled, and hardened highly concurrent, distributed microservices handling massive throughput. 
 
-**Bol AI** represents my strategic transition into **Principal / Architect AI Engineering**. 
+**SAI** represents my strategic transition into **Principal / Architect AI Engineering**. 
 
 This is not a thin wrapper over an OpenAI API call. This is a fully orchestrated **Multi-Agent Directed Acyclic Graph (DAG)** built upon enterprise architectural principles. I built this to demonstrate how to bridge the gap between "prototype AI" and "production AI" by applying rigorous software engineering guardrails—such as deterministic routing strategies, cost-control context windowing, robust structured logging, and concurrency separation.
 
 ---
 
-_Bol AI is actively maintained as a flagship demonstration of full-stack AI Engineering best practices. For architectural inquiries or discussions regarding Principal opportunities, please review the `/documentation` specs or explore the repository commits._
+_SAI is actively maintained as a flagship demonstration of full-stack AI Engineering best practices. For architectural inquiries or discussions regarding Principal opportunities, please review the `/documentation` specs or explore the repository commits._

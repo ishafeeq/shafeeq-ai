@@ -1,4 +1,4 @@
-# High-Level Design (HLD) — Bol AI Voice Assistant
+# High-Level Design (HLD) — SAI Voice Assistant
 
 > **App:** `jeetu-code-assistant` | **Last Updated:** February 2026
 
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-**Bol AI** is a Hinglish voice assistant that allows users to have natural spoken conversations in Hindi/Hinglish. The system accepts audio or text input, processes it through an intelligent multi-agent AI pipeline, and returns a synthesised spoken response — all in Hinglish. It is built as a full-stack application with:
+**SAI** is a Hinglish voice assistant that allows users to have natural spoken conversations in Hindi/Hinglish. The system accepts audio or text input, processes it through an intelligent multi-agent AI pipeline, and returns a synthesised spoken response — all in Hinglish. It is built as a full-stack application with:
 
 - A **Python FastAPI** backend hosting the AI pipeline and REST API
 - A **React + Vite** frontend SPA
@@ -35,31 +35,26 @@ User (Browser / Mobile)
 FastAPI      Vite Dev Server
 (port 8000)  (port 5173)
    │
-   ├── POST /send-otp           Auth
-   ├── POST /verify-otp         Auth
-   ├── GET  /users/me           Auth
-   ├── GET  /conversations      History
-   ├── POST /conversations      History
-   ├── POST /chat/transcribe    STT (Speech-to-Text) Translation + initial state
-   ├── POST /chat/transliterate Fetch STT Transliteration (Hinglish)
-   ├── POST /chat/req-audio     Fetch Background TTS User Query Audio
-   ├── POST /chat/res-text      LangGraph AI Inference + Text Response Stream
-   ├── POST /chat/res-audio     Fetch Background TTS AI Response Audio
-   └── GET  /uploads/*          Static audio files
-         │
-         ▼
-   LangGraph AI Pipeline
-   (see diagram below)
-         │
-         ▼
- ┌─────────────────┐    ┌──────────────────────┐
- │  PostgreSQL DB  │    │   External APIs      │
- │  - users        │    │   - Groq (LLM)       │
- │  - conversations│    │   - Tavily (search)  │
- │  - messages     │    │   - Sarvam (STT+TTS) │
- │  - payments     │    │   - Ollama (embed)   │
- │  - pgvector     │    └──────────────────────┘
- └─────────────────┘
+   ▼
+┌──────────────────────┐
+│    LiteLLM Proxy     │   AI Gateway (port 4000)
+│ (Routing & Telemetry)│   - OTLP Instrumentation
+└──────────┬───────────┘
+           │
+     ┌─────┴──────┐
+     │            │
+     ▼            ▼
+ LangGraph      Semantic Cache
+AI Pipeline     (pgvector)
+     │
+     ▼
+┌─────────────────┐    ┌──────────────────────┐
+│  PostgreSQL DB  │    │   External APIs      │
+│  - users        │    │                      │
+│  - conversations│    │   - Groq (LLM)       │
+│  - pgvector     │    │   - Tavily (search)  │
+│  (RAG & Cache)  │    │   - Sarvam (STT+TTS) │
+└─────────────────┘    └──────────────────────┘
 ```
 
 ---
@@ -232,9 +227,36 @@ The LangGraph pipeline components were strictly decoupled to prevent a monolithi
 - `agents/tools.py`: Wraps search engines (Tavily/pgvector) and LLM initializations behind generic factory patterns.
 - `agents/nodes.py`: The atomic functions carrying executing behaviors (`node_web_search`, `node_rag_search`, `node_context_filter`), mapping strictly to pipeline edges.
 
+
 ---
 
-### 3.5 Speech Handlers
+### 3.7 Semantic Caching (`src/cache.py`)
+
+To optimize latency and reduce redundant LLM costs, the system implements a **Semantic Cache** layer using `pgvector`.
+
+| Feature | Detail |
+|---|---|
+| **Mechanism** | Cosine similarity lookup on query embeddings |
+| **Threshold** | 0.95 (configurable) |
+| **Store** | `semantic_cache` table in PostgreSQL via `pgvector` |
+| **Embeddings** | Generated via LiteLLM proxy (`nvidia/llama-nemotron-embed-vl-1b-v2`) |
+
+**Flow:**
+1. Incoming English query is embedded.
+2. PostgreSQL searches for previous queries with similarity > 0.95.
+3. If hit: Cached response returned instantly, bypassing LangGraph.
+4. If miss: LangGraph executes, results are stored in cache for future use.
+
+### 3.8 AI Gateway (`litellm/config.yaml`)
+
+**LiteLLM** acts as the centralized AI Gateway, providing:
+- **Unified API**: Backend talks to one endpoint for all models (embeddings, reasoning).
+- **Model Routing**: Decouples model names (e.g., `openai/gpt-oss-120b`) from actual providers (Groq/OpenRouter).
+- **OTLP Instrumentation**: Natively exports request/response spans to Jaeger and metrics to Prometheus.
+
+---
+
+### 3.9 Speech Handlers
 
 #### STT (`src/stt_handler.py`) — Sarvam AI `saaras:v3`
 
@@ -363,3 +385,22 @@ Orchestrates all components for local development:
 2. Starts FastAPI backend (Uvicorn)
 3. Starts Vite frontend dev server
 4. Starts Nginx reverse proxy (HTTPS)
+
+---
+
+## 8. Observability & Monitoring
+
+The system uses a hardened OpenTelemetry-based observability stack.
+
+| Tool | Role |
+|---|---|
+| **OpenLIT** | OTEL instrumentation for Python/FastAPI and LLM calls |
+| **LiteLLM** | AI Gateway providing model-level telemetry |
+| **Jaeger** | Distributed tracing for inspecting LangGraph execution |
+| **Prometheus** | Metric storage (Tokens, Latency, Throughput) |
+| **Grafana** | Visualization dashboards |
+
+### 8.1 Key Dashboards
+- **LLM Performance**: Track TTFT (Time to First Token), Total Latency, and Error rates.
+- **Cost Analysis**: Monitor token consumption per model/user in real-time.
+- **Trace Explorer**: Deep dive into individual request paths through LangGraph nodes.

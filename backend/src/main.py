@@ -59,7 +59,7 @@ from .database import engine
 
 from .routes import auth
 
-app = FastAPI(title="Bol-AI SAI Backend")
+app = FastAPI(title="SAI Backend")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -121,9 +121,8 @@ try:
         client_response_hook=client_response_hook
     )
     openlit.init(
-        environment="development",
-        application_name="bol-ai-backend",
-        otlp_endpoint="http://jaeger:4318"
+        environment="production",
+        application_name="sai-backend"
     )
 except Exception as e:
     logger.error(f"Failed to initialize OpenLIT: {e}")

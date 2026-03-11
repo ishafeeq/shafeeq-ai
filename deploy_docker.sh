@@ -10,6 +10,9 @@ trap 'echo -e "\n❌❌❌ Gracefully stopping all services..."; docker-compose 
 COMMAND=${1:-"up"}
 SERVICE=${2:-""}
 
+echo "Freeing up occupied ports (9100, 9101, 4000)..."
+lsof -ti:9100,9101,4000 | xargs kill -9 2>/dev/null || true
+
 case "$COMMAND" in
   "up")
     echo "Building and starting Docker containers..."
@@ -44,7 +47,7 @@ esac
 
 echo ""
 echo "==========================================================="
-echo "   Bol AI Docker Stack Status 🐳"
+echo "   SAI Docker Stack Status 🐳"
 echo "==========================================================="
 # ... (rest of IP detection logic)
 echo ""
@@ -57,7 +60,7 @@ LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/nul
 
 echo ""
 echo "==========================================================="
-echo "   Bol AI Docker Stack is running! 🐳"
+echo "   SAI Docker Stack is running! 🐳"
 echo "==========================================================="
 echo "   ACCESS THE APP:"
 echo "   ✅✅✅>> Frontend ( React ):   http://localhost:9100"
@@ -73,7 +76,7 @@ fi
 echo "==========================================================="
 echo ""
 echo "Active Containers:"
-docker ps --filter "name=bol-ai" --format "table {{.Names}}\t{{.ID}}\t{{.Ports}}"
+docker ps --filter "name=sai" --format "table {{.Names}}\t{{.ID}}\t{{.Ports}}"
 echo ""
 
 echo "Attaching to live logs... (Press Ctrl+C to stop services)"

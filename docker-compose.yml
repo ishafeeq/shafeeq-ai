@@ -4,24 +4,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: bol-ai-backend:latest
-    container_name: bol-ai-backend
+    image: sai-backend:latest
+    container_name: sai-backend
     deploy:
       resources:
         limits:
           cpus: '1.0'
           memory: 1024M
+    depends_on:
+      - litellm
     environment:
       - GROQ_GUARDRAIL_MODEL=openai/gpt-oss-20b
       - GROQ_SYNTHESIZER_MODEL=openai/gpt-oss-120b
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://jaeger:4318/v1/traces
-      - OTEL_EXPORTER_OTLP_METRICS_ENDPOINT=http://prometheus:9090/api/v1/otlp/v1/metrics
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-south-1.grafana.net/otlp
+      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20MTU1MzcwMDpnbGNfZXlKdklqb2lNVFk1TkRReU5pSXNJbTRpT2lKbWFXNWxjbUZuTFdkeVlXWmhibUVpTENKcklqb2lOelUzV2pkSlRVRk5WalpIV21SS1pEaHBiREo1T1RrMUlpd2liU0k2ZXlKeUlqb2ljSEp2WkMxaGNDMXpiM1YwYUMweEluMTk=
       - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
       - LITELLM_MASTER_KEY=sk-1234
-    depends_on:
-      - jaeger
-      - prometheus
-      - litellm
     secrets:
       - bol_sarvam_key
       - bol_tavily_key
@@ -47,8 +45,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: bol-ai-frontend:latest
-    container_name: bol-ai-frontend
+    image: sai-frontend:latest
+    container_name: sai-frontend
     deploy:
       resources:
         limits:
@@ -63,54 +61,14 @@ services:
       # Read-only access to audio uploads for Nginx to serve
       - uploads_data:/app/uploads:ro
 
-  jaeger:
-    image: jaegertracing/jaeger:2.2.0
-    container_name: bol-ai-jaeger
-    ports:
-      - "16686:16686" # UI
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
-      - "8889:8889" # Prometheus scrape port (spanmetrics)
-      - "14269:14269" # Admin port
-    volumes:
-      - ./jaeger/jaeger-config.yml:/etc/jaeger/jaeger-config.yml
-      - ./jaeger/ui-config.json:/etc/jaeger/ui-config.json
-    command: [ "--config", "/etc/jaeger/jaeger-config.yml" ]
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: bol-ai-prometheus
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.enable-remote-write-receiver'
-      - '--web.enable-otlp-receiver'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-    ports:
-      - "9090:9090"
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: bol-ai-grafana
-    volumes:
-      - ./grafana/provisioning/datasources/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
-      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-    ports:
-      - "3000:3000"
-    depends_on:
-      - prometheus
-
   litellm:
     image: ghcr.io/berriai/litellm:main-stable
-    container_name: bol-ai-litellm
+    container_name: sai-litellm
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1024M
     ports:
       - "4000:4000"
     volumes:
@@ -122,18 +80,17 @@ services:
     environment:
       - LITELLM_LOG=INFO
       - LITELLM_MASTER_KEY=sk-1234
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-south-1.grafana.net/otlp
+      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20MTU1MzcwMDpnbGNfZXlKdklqb2lNVFk1TkRReU5pSXNJbTRpT2lKbWFXNWxjbUZuTFdkeVlXWmhibUVpTENKcklqb2lOelUzV2pkSlRVRk5WalpIV21SS1pEaHBiREo1T1RrMUlpd2liU0k2ZXlKeUlqb2ljSEp2WkMxaGNDMXpiM1YwYUMweEluMTk=
       - LITELLM_MIGRATE=True
     entrypoint: [ "/bin/sh", "/app/start_proxy.sh" ]
     depends_on:
-      jaeger:
-        condition: service_started
       litellm-db:
         condition: service_healthy
 
   litellm-db:
     image: postgres:17-alpine
-    container_name: bol-ai-litellm-db
+    container_name: sai-litellm-db
     environment:
       - POSTGRES_USER=litellm
       - POSTGRES_PASSWORD=litellm_pass
@@ -153,7 +110,6 @@ services:
 
 volumes:
   uploads_data:
-  prometheus_data:
   litellm_db_data:
 
 

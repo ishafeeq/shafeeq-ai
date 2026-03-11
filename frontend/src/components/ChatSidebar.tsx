@@ -154,7 +154,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               <span className="text-white text-xs font-bold">S</span>
             </div>
             <div>
-              <p className="text-white text-xs font-semibold">Shafeeq-AI</p>
+              <p className="text-white text-xs font-semibold">SAI</p>
               <p className="text-zinc-600 text-[10px]">GPT-OSS Core</p>
             </div>
           </div>

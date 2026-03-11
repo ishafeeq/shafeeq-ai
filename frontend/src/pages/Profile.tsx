@@ -51,7 +51,7 @@ export const Profile: React.FC = () => {
           className="mb-6 flex items-center gap-2 text-zinc-400 hover:text-white transition-colors"
         >
           <ArrowLeft size={18} />
-          Back to Shafeeq-AI
+          Back to SAI
         </button>
 
         <div className="rounded-3xl bg-[#09090b] border border-zinc-800 shadow-2xl p-6 sm:p-8">

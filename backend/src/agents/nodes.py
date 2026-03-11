@@ -2,7 +2,7 @@ import json
 import logging
 import time
 from langchain_core.messages import HumanMessage, SystemMessage
-from .state import BolState
+from .state import SAIState
 from .prompts import _INTENT_ROUTER_SYSTEM, _QUERY_REFINER_SYSTEM, _FILTER_SYSTEM
 from .tools import _llm, _extract_json, _recent_context, _tavily_search, _pgvector_search
 
@@ -19,7 +19,7 @@ def _get_usage(resp) -> tuple[int, int]:
         return resp.usage_metadata.get("input_tokens", 0), resp.usage_metadata.get("output_tokens", 0)
     return 0, 0
 
-def node_intent_router(state: BolState) -> dict:
+def node_intent_router(state: SAIState) -> dict:
     last_human = next(
         (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), ""
     )
@@ -50,7 +50,7 @@ def node_intent_router(state: BolState) -> dict:
     return {"intent": intent, "reasoning_level": reasoning_level, "usage_20b_calls": [{"node": "intent_router", "prompt": pt, "completion": ct}]}
 
 
-def node_query_refiner(state: BolState) -> dict:
+def node_query_refiner(state: SAIState) -> dict:
     last_human    = next(
         (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), ""
     )
@@ -83,7 +83,7 @@ def node_query_refiner(state: BolState) -> dict:
     return {"search_queries": queries, "usage_20b_calls": [{"node": "query_refiner", "prompt": pt, "completion": ct}]}
 
 
-async def node_web_search(state: BolState) -> dict:
+async def node_web_search(state: SAIState) -> dict:
     queries = state.get("search_queries", [])
     t0 = time.time()
     raw     = await _tavily_search(queries)
@@ -92,14 +92,14 @@ async def node_web_search(state: BolState) -> dict:
     return {"raw_context": raw, "tavily_search_time_sec": duration}
 
 
-async def node_rag_search(state: BolState) -> dict:
+async def node_rag_search(state: SAIState) -> dict:
     queries = state.get("search_queries", [])
     raw     = _pgvector_search(queries)
     logger.info(f"[RAG] Retrieved {len(raw)} chars")
     return {"raw_context": raw}
 
 
-def node_context_filter(state: BolState) -> dict:
+def node_context_filter(state: SAIState) -> dict:
     raw        = state.get("raw_context", "")
     last_human = next(
         (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), ""

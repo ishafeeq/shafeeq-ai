@@ -1,5 +1,5 @@
 """
-graph.py — Production LangGraph Agent for Bol AI (GPT-OSS Edition)
+graph.py — Production LangGraph Agent for SAI (GPT-OSS Edition)
 ===================================================================
 
 Node pipeline:
@@ -35,7 +35,7 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, System
 from langgraph.graph import StateGraph, END
 
 # Agents imports
-from .agents.state import BolState
+from .agents.state import SAIState
 from .agents.prompts import _SYNTHESIZE_SYSTEM
 from .agents.nodes import (
     node_intent_router,
@@ -55,17 +55,17 @@ CURRENT_DATE = datetime.now(timezone.utc).strftime("%B %d, %Y")
 
 # ── Routing edges ─────────────────────────────────────────────────────────────
 
-def after_intent_router(state: BolState) -> str:
+def after_intent_router(state: SAIState) -> str:
     """DIRECT intent skips query_refiner and all tools."""
     return "query_refiner" if state.get("intent") in ("WEB", "RAG") else "end"
 
-def after_query_refiner(state: BolState) -> str:
+def after_query_refiner(state: SAIState) -> str:
     return "web_search" if state.get("intent") == "WEB" else "rag_search"
 
 # ── Build graph ───────────────────────────────────────────────────────────────
 
 def _build_graph():
-    g = StateGraph(BolState)
+    g = StateGraph(SAIState)
 
     g.add_node("intent_router",        node_intent_router)
     g.add_node("query_refiner",        node_query_refiner)
@@ -93,7 +93,7 @@ _graph = _build_graph()
 
 from opentelemetry import metrics
 import time
-meter = metrics.get_meter("bol_ai_manual_tokens")
+meter = metrics.get_meter("sai_manual_tokens")
 prompt_counter = meter.create_counter("gen_ai_usage_input_tokens")
 completion_counter = meter.create_counter("gen_ai_usage_output_tokens")
 ttft_histogram = meter.create_histogram("gen_ai_server_time_to_first_token_seconds")
@@ -122,7 +122,7 @@ async def run_context_graph(
             messages.append(AIMessage(content=content))
     messages.append(HumanMessage(content=user_text))
 
-    initial_state: BolState = {
+    initial_state: SAIState = {
         "messages":        messages,
         "user_name":       user_name or "there",
         "user_mobile":     user_mobile or "",

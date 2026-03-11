@@ -323,8 +323,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Bol AI - LLM Observability",
-  "uid": "bol_ai_llm_obs",
+  "title": "SAI - LLM Observability",
+  "uid": "sai_llm_obs",
   "version": 10,
   "weekStart": ""
 }
