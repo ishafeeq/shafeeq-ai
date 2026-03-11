@@ -1,5 +1,5 @@
 """
-ingest.py — RAG Ingestion Script for Bol AI
+ingest.py — RAG Ingestion Script for SAI
 ============================================
 Vectorizes local project folders into pgvector for RAG retrieval.
 

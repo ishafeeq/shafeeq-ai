@@ -1,9 +1,10 @@
 from typing import List, Annotated
 from typing_extensions import TypedDict
+import operator
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
-class BolState(TypedDict):
+class SAIState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     user_name: str
     user_mobile: str
@@ -17,3 +18,7 @@ class BolState(TypedDict):
     search_queries: List[str]
     raw_context: str
     tool_context: str
+
+    # Observability tracking natively within Graph state for API streaming return
+    usage_20b_calls: Annotated[List[dict], operator.add]
+    tavily_search_time_sec: float

@@ -1,0 +1,330 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Input Token Consumption Counters (Cumulative)",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(gen_ai_usage_input_tokens_total) by (gen_ai_request_model)",
+          "legendFormat": "{{gen_ai_request_model}} - input"
+        }
+      ]
+    },
+    {
+      "title": "Output Token Consumption Counters (Cumulative)",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(gen_ai_usage_output_tokens_total) by (gen_ai_request_model)",
+          "legendFormat": "{{gen_ai_request_model}} - output"
+        }
+      ]
+    },
+    {
+      "title": "Total Token Consumption Counters (Cumulative)",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "sum(gen_ai_client_token_usage_sum) by (gen_ai_request_model)",
+          "legendFormat": "{{gen_ai_request_model}} - Total"
+        }
+      ]
+    },
+    {
+      "title": "Avg Tokens per Request",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "interval": "5m",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(gen_ai_client_token_usage_sum[$__rate_interval])) by (gen_ai_request_model)) / (sum(increase(gen_ai_client_operation_duration_seconds_count[$__rate_interval])) by (gen_ai_request_model) > 0)",
+          "legendFormat": "Avg Total tokens / total time - {{gen_ai_request_model}}"
+        }
+      ]
+    },
+    {
+      "title": "Avg Cost per Request",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "interval": "5m",
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(sum(increase(gen_ai_client_token_usage_sum[$__rate_interval])) by (gen_ai_request_model) / 1000) * 0.002 / (sum(increase(gen_ai_client_operation_duration_seconds_count[$__rate_interval])) by (gen_ai_request_model) > 0)",
+          "legendFormat": "Avg Cost per Request - {{gen_ai_request_model}}"
+        }
+      ]
+    },
+    {
+      "title": "Latency per Model (OSS-20B vs OSS-120B)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(gen_ai_client_operation_duration_seconds_bucket[$__rate_interval])) by (le, gen_ai_request_model))",
+          "legendFormat": "{{gen_ai_request_model}} (P95)"
+        }
+      ]
+    },
+    {
+      "title": "TTFT per Model (OSS-20B vs OSS-120B)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(gen_ai_server_time_to_first_token_seconds_bucket[$__rate_interval])) by (le, gen_ai_request_model))",
+          "legendFormat": "{{gen_ai_request_model}} (P95)"
+        }
+      ]
+    },
+    {
+      "title": "End-to-End API Latency /res-text",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "interval": "15m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{span_name=\"POST /chat/res-text\"}[$__rate_interval])) by (le))",
+          "legendFormat": "API Server /res-text P95"
+        }
+      ]
+    },
+    {
+      "title": "End-to-End API Latency /users/me",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{span_name=\"GET /users/me\"}[$__rate_interval])) by (le))",
+          "legendFormat": "API Server /users/me P95"
+        }
+      ]
+    },
+    {
+      "title": "Total Traffic on API /res-text",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "expr": "sum(increase(traces_span_metrics_duration_milliseconds_count{span_name=\"POST /chat/res-text\", status_code!=\"STATUS_CODE_ERROR\"}[$__rate_interval]))",
+          "legendFormat": "Total traffic on /res-text"
+        },
+        {
+          "expr": "sum(increase(traces_span_metrics_duration_milliseconds_count{span_name=\"POST /chat/res-text\", status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval]))",
+          "legendFormat": "Total Error traffic on /res-text"
+        }
+      ]
+    },
+    {
+      "title": "Total 200-OK Traffic on API /users/me",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "expr": "sum(increase(traces_span_metrics_duration_milliseconds_count{span_name=\"GET /users/me\", status_code!=\"STATUS_CODE_ERROR\"}[$__rate_interval]))",
+          "legendFormat": "Total traffic on /users/me"
+        },
+        {
+          "expr": "sum(increase(traces_span_metrics_duration_milliseconds_count{span_name=\"GET /users/me\", status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval]))",
+          "legendFormat": "Total Error traffic on /users/me"
+        }
+      ]
+    },
+    {
+      "title": "End-to-End API Latency /benchmark-stream",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{span_name=\"POST /chat/benchmark-stream\"}[$__rate_interval])) by (le))",
+          "legendFormat": "API Server /benchmark-stream P95"
+        }
+      ]
+    },
+    {
+      "title": "Total Traffic on API /benchmark-stream",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "expr": "sum(increase(traces_span_metrics_duration_milliseconds_count{span_name=\"POST /chat/benchmark-stream\", status_code!=\"STATUS_CODE_ERROR\"}[$__rate_interval]))",
+          "legendFormat": "Total traffic on /benchmark-stream"
+        },
+        {
+          "expr": "sum(increase(traces_span_metrics_duration_milliseconds_count{span_name=\"POST /chat/benchmark-stream\", status_code=\"STATUS_CODE_ERROR\"}[$__rate_interval]))",
+          "legendFormat": "Total Error traffic on /benchmark-stream"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "SAI - LLM Observability",
+  "uid": "sai_llm_obs",
+  "version": 10,
+  "weekStart": ""
+}

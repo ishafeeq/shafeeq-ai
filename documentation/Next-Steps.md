@@ -6,6 +6,18 @@ This document analyses the current production readiness of the backend and presc
 
 ---
 
+## 0. Recently Hardened & Implemented
+
+The following architectural foundations have been successfully integrated:
+
+- **AI Gateway (LiteLLM)**: Decentralized model routing and unified OTLP telemetry.
+- **Semantic Caching**: High-performance `pgvector`-based cache (95% similarity).
+- **Observability Stack**: Integrated OpenLIT (OpenTelemetry), Prometheus, Grafana, and Jaeger.
+- **Production Deployment**: Gunicorn process manager with multiple Uvicorn workers.
+- **Automated Benchmarking**: DeepEval-powered synthesis and cost/TTFT performance tracking.
+
+---
+
 ## 1. Is This a Single-Threaded Application?
 
 ### Current Reality
@@ -174,7 +186,7 @@ No performance tests exist. AI endpoints have high latency (3–15s per request)
 # locustfile.py
 from locust import HttpUser, task, between
 
-class BolAIUser(HttpUser):
+class SAIUser(HttpUser):
     wait_time = between(2, 5)
     token = None
 
@@ -431,17 +443,14 @@ http {
 
 ---
 
-## 7. Summary of Action Items
+### 7. Summary of Action Items
 
 | Priority | Area | Action |
 |---|---|---|
 | 🔴 **High** | Concurrency | Replace blocking `requests` in STT/TTS handlers with `httpx` async |
-| 🔴 **High** | Security | Add `slowapi` rate limiting on all endpoints, especially `/send-otp` and `/chat/audio` |
-| 🔴 **High** | Multi-core | Deploy with Gunicorn + UvicornWorker (`workers = 2 × cores + 1`) |
+| 🔴 **High** | Security | Add `slowapi` rate limiting on all endpoints, especially `/send-otp` |
 | 🟡 **Medium** | Logging | Add structured JSON logging + request correlation IDs |
-| 🟡 **Medium** | Monitoring | Instrument with OpenTelemetry; set up Grafana dashboard |
-| 🟡 **Medium** | Cost | Log Groq token usage per request; deduct from `credits_balance`; set API key spend caps |
-| 🟡 **Medium** | Rate Limiting | Add Nginx `limit_req_zone` rules for IP-level DDoS protection |
-| 🟢 **Low** | Performance Testing | Set up `locust` and establish p95 baseline latencies |
-| 🟢 **Low** | Observability | Integrate Portkey/Helicone for deep tool-calling telemetry and agent tracking. |
-| 🟢 **Low** | CI/CD Eval | Integrate Promptfoo pre-prod testing and setup DeepEval for context drift alerts. |
+| 🟡 **Medium** | Cost | Implement automated budget alerts based on real-time Prometheus metrics |
+| 🟡 **Medium** | Cache | Implement cache eviction policies (LRU) and TTL for Semantic Cache |
+| 🟢 **Low** | CI/CD | Integrate DeepEval regression tests into GitHub Actions |
+| 🟢 **Low** | Analytics | Build "Model Heatmap" dashboard in Grafana to track provider reliability |

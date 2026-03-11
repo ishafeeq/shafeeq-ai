@@ -46,6 +46,8 @@ build/
 wheels/
 *.egg-info
 Backend/uploads/*
+backend/tests/evaluation/
+Backend/tests/evaluation/*
 
 # Virtual environments
 .venv
@@ -60,3 +62,9 @@ nginx/logs/*.log
 nginx/temp/*
 nginx/certs/*
 
+
+# Deployment scripts
+deploy_prod.sh
+deploy_on_cloud.sh
+setup_cloud_proxy.sh
+cloud-apps.conf

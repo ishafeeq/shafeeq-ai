@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Bol AI',
-        short_name: 'BolAI',
+        name: 'SAI',
+        short_name: 'SAI',
         description: 'Your Audio-First AI Voice Assistant',
         theme_color: '#09090b',
         background_color: '#09090b',

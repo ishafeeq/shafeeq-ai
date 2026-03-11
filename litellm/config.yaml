@@ -1,0 +1,58 @@
+model_list:
+  - model_name: openai/gpt-oss-20b
+    litellm_params:
+      model: groq/openai/gpt-oss-20b
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: openai/gpt-oss-120b
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+  - model_name: meta-llama/llama-3.3-70b-instruct:free
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: stepfun/step-3.5-flash:free
+    litellm_params:
+      model: openrouter/stepfun/step-3.5-flash:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: openai/gpt-oss-120b:free
+    litellm_params:
+      model: openrouter/openai/gpt-oss-120b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: openai/gpt-oss-20b:free
+    litellm_params:
+      model: openrouter/openai/gpt-oss-20b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: qwen/qwen3-coder:free
+    litellm_params:
+      model: openrouter/qwen/qwen-3-coder-32b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: nousresearch/hermes-3-llama-3.1-405b:free
+    litellm_params:
+      model: openrouter/nousresearch/hermes-3-llama-3.1-405b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: arcee-ai/trinity-large-preview:free
+    litellm_params:
+      model: openrouter/arcee-ai/trinity-large-preview:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: liquid/lfm-2.5-1.2b-thinking:free
+    litellm_params:
+      model: openrouter/liquid/lfm-2.5-1.2b-thinking:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: z-ai/glm-4.5-air:free
+    litellm_params:
+      model: openrouter/z-ai/glm-4.5-air:free
+      api_key: os.environ/OPENROUTER_API_KEY
+  - model_name: openrouter/embedding
+    litellm_params:
+      model: openrouter/nvidia/llama-nemotron-embed-vl-1b-v2:free
+      api_key: os.environ/OPENROUTER_API_KEY
+
+litellm_settings:
+  success_callback: ["otel"]
+  failure_callback: ["otel"]
+  set_verbose: true
+
+router_settings:
+  routing_strategy: simple-shuffle
+  timeout: 30

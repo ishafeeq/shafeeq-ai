@@ -3,7 +3,7 @@ name = "jeetu-code-assistant"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.14"
 dependencies = [
     "langchain-community>=0.3.31",
     "langchain-core>=0.3.83",
@@ -29,5 +29,15 @@ dependencies = [
     "psycopg[binary,pool]>=3.2.13",
     "pgvector>=0.3.6",
     "gunicorn>=23.0.0",
-    "langsmith>=0.1.0",
+    "openlit>=1.33.3",
+    "prometheus-client>=0.20.0",
+    "eval-type-backport>=0.2.0",
+    "deepeval>=3.8.9",
+    "groq>=0.37.1",
+    "opentelemetry-distro>=0.61b0",
+    "opentelemetry-exporter-otlp>=1.40.0",
+    "opentelemetry-instrumentation-fastapi>=0.61b0",
+    "opentelemetry-instrumentation-logging>=0.61b0",
+    "langchain-openai>=0.3.3",
+    "openai>=1.63.2"
 ]

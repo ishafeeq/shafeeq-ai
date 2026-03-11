@@ -32,14 +32,14 @@ const STATUS: Record<Lang, Record<VoiceState, string>> = {
 };
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
-interface BolAIScreenProps {
+interface SAIScreenProps {
   lang: Lang;
   showSidebar: boolean;
   setShowSidebar: (v: boolean) => void;
   setShowAuthModal: (v: boolean) => void;
 }
 
-const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: BolAIScreenProps) => {
+const SAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: SAIScreenProps) => {
   const { user } = useAuth();
   const { 
     messages, 
@@ -231,7 +231,7 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
   const startRecording = useCallback(async (e?: Event | React.SyntheticEvent) => {
     e?.preventDefault();
     if (!user) { setShowAuthModal(true); return; }
-    if (isRecordingRef.current) return;
+    if (isRecordingRef.current || isProcessing) return;
 
     audioPlayer.current?.pause();
     setPlayingMsgId(null);
@@ -423,12 +423,13 @@ const BolAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: Bo
 
             {/* Main button */}
             <button
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onMouseLeave={stopRecording}
-              onTouchStart={startRecording}
-              onTouchEnd={stopRecording}
-              className="relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 select-none"
+              disabled={isProcessing}
+              onMouseDown={isProcessing ? undefined : startRecording}
+              onMouseUp={isProcessing ? undefined : stopRecording}
+              onMouseLeave={isProcessing ? undefined : stopRecording}
+              onTouchStart={isProcessing ? undefined : startRecording}
+              onTouchEnd={isProcessing ? undefined : stopRecording}
+              className={`relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 select-none ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
               style={{
                 background: isRecording
                   ? 'linear-gradient(135deg, #dc2626, #ef4444)'
@@ -547,8 +548,7 @@ function AppContent() {
               alt="SAI Logo" 
               className="w-8 h-8 rounded-lg object-contain bg-black/20"
             />
-            <span className="text-white font-bold text-base tracking-tight hidden sm:block">Shafeeq-AI</span>
-            <span className="text-white font-bold text-base tracking-tight sm:hidden">SAI</span>
+            <span className="text-white font-bold text-base tracking-tight">SAI</span>
           </Link>
 
           {/* Right controls */}
@@ -561,7 +561,7 @@ function AppContent() {
       </div>
 
       <Routes>
-        <Route path="/" element={<BolAIScreen lang={lang} showSidebar={showSidebar} setShowSidebar={setShowSidebar} setShowAuthModal={setShowAuthModal} />} />
+        <Route path="/" element={<SAIScreen lang={lang} showSidebar={showSidebar} setShowSidebar={setShowSidebar} setShowAuthModal={setShowAuthModal} />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

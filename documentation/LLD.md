@@ -1,4 +1,4 @@
-# Low-Level Design (LLD) — Bol AI Voice Assistant
+# Low-Level Design (LLD) — SAI Voice Assistant
 
 > **App:** `jeetu-code-assistant` | **Last Updated:** February 2026
 
@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-This document describes the code-level design patterns, conventions, and structural decisions used in the backend of Bol AI. The backend is written in Python using FastAPI and LangGraph.
+This document describes the code-level design patterns, conventions, and structural decisions used in the backend of SAI. The backend is written in Python using FastAPI and LangGraph.
 
 ---
 
@@ -20,11 +20,11 @@ The LangGraph `StateGraph` is a concrete implementation of the **Chain of Respon
 
 ```python
 # Each node takes shared state and returns a partial update
-def node_intent_router(state: BolState) -> dict:
+def node_intent_router(state: ShafeeqState) -> dict:
     ...
     return {"intent": intent, "reasoning_level": reasoning_level}
 
-def node_query_refiner(state: BolState) -> dict:
+def node_query_refiner(state: ShafeeqState) -> dict:
     ...
     return {"search_queries": queries}
 ```
@@ -79,7 +79,7 @@ The synthesizer system prompt uses Python string formatting as a **template meth
 
 ```python
 _SYNTHESIZE_SYSTEM = """\
-You are Bol AI, a smart ... assistant talking to {name}.
+You are SAI, a smart ... assistant talking to {name}.
 Current date: {current_date}.
 ...
 """
@@ -216,7 +216,27 @@ This prevents accidentally exposing internal fields (like raw OTPs or passwords)
 
 ---
 
-### 2.11 Singleton (Compiled Graph)
+### 2.11 Proxy Pattern (AI Gateway via LiteLLM)
+
+**Where:** All LLM and Embedding calls in `agents/tools.py` and `cache.py`.
+
+The system uses LiteLLM as a **Proxy** to decouple the application from specific LLM providers. 
+
+- **Abstraction**: The backend uses a single endpoint for multiple models (Groq, OpenRouter).
+- **Instrumentation**: Telemetry is offloaded to the gateway, keeping the backend logic focused on orchestration.
+
+### 2.12 Guarded Resource / Cache Pattern (Semantic Caching)
+
+**Where:** `cache.py`
+
+The `SemanticCacheManager` implements a **Guarded Resource** pattern, where `get_cached_response` acts as a guard before hitting the expensive LangGraph resource.
+
+- **Similarity Logic**: Logic for "closeness" is encapsulated within the manager using `pgvector` operators.
+- **Fallthrough**: If a cache miss occurs, the caller proceeds to the primary resource and updates the cache upon completion.
+
+---
+
+### 2.13 Singleton (Compiled Graph)
 
 **Where:** `graph.py` — module-level `_graph`
 
@@ -258,6 +278,7 @@ This prevents context overflow errors while preserving as much relevant history 
 |---|---|---|
 | `main.py` | Application Bootstrap | FastAPI app init, middleware, router registration |
 | `graph.py` | Chain of Responsibility, Singleton | LangGraph execution wrapper and edge mapping |
+| `cache.py` | Guarded Resource | Semantic caching logic using pgvector |
 | `agents/state.py` | Value Object / TypedDict | Immutable shared pipeline structure |
 | `agents/prompts.py` | Template Method | Centralized System Prompt skeletons |
 | `agents/tools.py` | Factory | LLM and search engine instantiation |

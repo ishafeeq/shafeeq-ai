@@ -4,18 +4,22 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: bol-ai-backend
+    image: sai-backend:latest
+    container_name: sai-backend
     deploy:
       resources:
         limits:
           cpus: '1.0'
           memory: 1024M
+    depends_on:
+      - litellm
     environment:
       - GROQ_GUARDRAIL_MODEL=openai/gpt-oss-20b
       - GROQ_SYNTHESIZER_MODEL=openai/gpt-oss-120b
-      - LANGCHAIN_TRACING_V2=true
-      - LANGCHAIN_ENDPOINT=https://eu.api.smith.langchain.com
-      - LANGCHAIN_PROJECT=gsh-shafeeq-bolai
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-south-1.grafana.net/otlp
+      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20MTU1MzcwMDpnbGNfZXlKdklqb2lNVFk1TkRReU5pSXNJbTRpT2lKbWFXNWxjbUZuTFdkeVlXWmhibUVpTENKcklqb2lOelUzV2pkSlRVRk5WalpIV21SS1pEaHBiREo1T1RrMUlpd2liU0k2ZXlKeUlqb2ljSEp2WkMxaGNDMXpiM1YwYUMweEluMTk=
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - LITELLM_MASTER_KEY=sk-1234
     secrets:
       - bol_sarvam_key
       - bol_tavily_key
@@ -23,7 +27,6 @@ services:
       - bol_secret_key
       - bol_otp_auth_key
       - bol_ollama_base_url
-      - bol_langchain_api_key
       - bol_postgres_user
       - bol_postgres_pass
       - bol_postgres_db
@@ -36,13 +39,14 @@ services:
       - "9101:8000"
     # Wait for DB, initialize schema, then start Gunicorn
     command: >
-      bash -c " export SARVAM_API_KEY=\$$(cat /run/secrets/bol_sarvam_key); export TAVILY_API_KEY=\$$(cat /run/secrets/bol_tavily_key); export GROQ_API_KEY=\$$(cat /run/secrets/bol_groq_key); export SECRET_KEY=\$$(cat /run/secrets/bol_secret_key); export OTP_AUTH_KEY=\$$(cat /run/secrets/bol_otp_auth_key); export DEV_HARDCODED_OTP=\$$(cat /run/secrets/bol_dev_hardcoded_otp); export OLLAMA_BASE_URL=\$$(cat /run/secrets/bol_ollama_base_url); export LANGCHAIN_API_KEY=\$$(cat /run/secrets/bol_langchain_api_key); export POSTGRES_USER=\$$(cat /run/secrets/bol_postgres_user); export POSTGRES_PASSWORD=\$$(cat /run/secrets/bol_postgres_pass); export POSTGRES_DB=\$$(cat /run/secrets/bol_postgres_db); export POSTGRES_HOST=\$$(cat /run/secrets/bol_postgres_host); export DATABASE_URL=\"postgresql://\$${POSTGRES_USER}:\$${POSTGRES_PASSWORD}@\$${POSTGRES_HOST}:6543/\$${POSTGRES_DB}\"; python -m src.init_db && gunicorn src.main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
+      bash -c " export SARVAM_API_KEY=\$$(cat /run/secrets/bol_sarvam_key); export TAVILY_API_KEY=\$$(cat /run/secrets/bol_tavily_key); export GROQ_API_KEY=\$$(cat /run/secrets/bol_groq_key); export SECRET_KEY=\$$(cat /run/secrets/bol_secret_key); export OTP_AUTH_KEY=\$$(cat /run/secrets/bol_otp_auth_key); export DEV_HARDCODED_OTP=\$$(cat /run/secrets/bol_dev_hardcoded_otp); export OLLAMA_BASE_URL=\$$(cat /run/secrets/bol_ollama_base_url); export POSTGRES_USER=\$$(cat /run/secrets/bol_postgres_user); export POSTGRES_PASSWORD=\$$(cat /run/secrets/bol_postgres_pass); export POSTGRES_DB=\$$(cat /run/secrets/bol_postgres_db); export POSTGRES_HOST=\$$(cat /run/secrets/bol_postgres_host); export DATABASE_URL=\"postgresql://\$${POSTGRES_USER}:\$${POSTGRES_PASSWORD}@\$${POSTGRES_HOST}:6543/\$${POSTGRES_DB}\"; python -m src.init_db && gunicorn src.main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: bol-ai-frontend
+    image: sai-frontend:latest
+    container_name: sai-frontend
     deploy:
       resources:
         limits:
@@ -57,8 +61,56 @@ services:
       # Read-only access to audio uploads for Nginx to serve
       - uploads_data:/app/uploads:ro
 
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: sai-litellm
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1024M
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml
+      - ./litellm/start_proxy.sh:/app/start_proxy.sh
+    secrets:
+      - bol_groq_key
+      - bol_openrouter_key
+    environment:
+      - LITELLM_LOG=INFO
+      - LITELLM_MASTER_KEY=sk-1234
+      - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-ap-south-1.grafana.net/otlp
+      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20MTU1MzcwMDpnbGNfZXlKdklqb2lNVFk1TkRReU5pSXNJbTRpT2lKbWFXNWxjbUZuTFdkeVlXWmhibUVpTENKcklqb2lOelUzV2pkSlRVRk5WalpIV21SS1pEaHBiREo1T1RrMUlpd2liU0k2ZXlKeUlqb2ljSEp2WkMxaGNDMXpiM1YwYUMweEluMTk=
+      - LITELLM_MIGRATE=True
+    entrypoint: [ "/bin/sh", "/app/start_proxy.sh" ]
+    depends_on:
+      litellm-db:
+        condition: service_healthy
+
+  litellm-db:
+    image: postgres:17-alpine
+    container_name: sai-litellm-db
+    environment:
+      - POSTGRES_USER=litellm
+      - POSTGRES_PASSWORD=litellm_pass
+      - POSTGRES_DB=litellm_db
+    volumes:
+      - litellm_db_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U litellm -d litellm_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
 volumes:
   uploads_data:
+  litellm_db_data:
 
 
 secrets:
@@ -80,9 +132,9 @@ secrets:
     file: ./secrets/bol_otp_auth_key.txt
   bol_ollama_base_url:
     file: ./secrets/bol_ollama_base_url.txt
-  bol_langchain_api_key:
-    file: ./secrets/bol_langchain_api_key.txt
   bol_postgres_host:
     file: ./secrets/bol_postgres_host.txt
   bol_dev_hardcoded_otp:
     file: ./secrets/bol_dev_hardcoded_otp.txt
+  bol_openrouter_key:
+    file: ./secrets/bol_openrouter_key.txt
