@@ -64,7 +64,8 @@ nginx/certs/*
 
 
 # Deployment scripts
-deploy_prod.sh
-deploy_on_cloud.sh
-setup_cloud_proxy.sh
-cloud-apps.conf
+# deploy_prod.sh
+# deploy_on_cloud.sh
+# setup_cloud_proxy.sh
+# cloud-apps.conf
+# local_dump.sql
