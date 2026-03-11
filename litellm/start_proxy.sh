@@ -7,9 +7,14 @@ echo "🚀 Constructing environment from Docker secrets..."
 export GROQ_API_KEY=$(cat /run/secrets/bol_groq_key | tr -d '\n' | tr -d '\r')
 export OPENROUTER_API_KEY=$(cat /run/secrets/bol_openrouter_key | tr -d '\n' | tr -d '\r')
 export OTEL_EXPORTER_OTLP_HEADERS=$(cat /run/secrets/bol_otel_headers | tr -d '\n' | tr -d '\r')
+export LITELLM_MASTER_KEY=$(cat /run/secrets/bol_litellm_master_key | tr -d '\n' | tr -d '\r')
+
+DB_USER=$(cat /run/secrets/bol_litellm_db_user | tr -d '\n' | tr -d '\r')
+DB_PASS=$(cat /run/secrets/bol_litellm_db_pass | tr -d '\n' | tr -d '\r')
+DB_NAME=$(cat /run/secrets/bol_litellm_db_name | tr -d '\n' | tr -d '\r')
 
 # Use local postgres container for LiteLLM to keep Supabase clean
-export DATABASE_URL="postgresql://litellm:litellm_pass@litellm-db:5432/litellm_db?schema=litellm_proxy"
+export DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@litellm-db:5432/${DB_NAME}?schema=litellm_proxy"
 
 echo "⏳ Waiting for LiteLLM Database (litellm-db:5432) to be ready..."
 # Use Python to check the connection since psql/nc might be missing in the LiteLLM image

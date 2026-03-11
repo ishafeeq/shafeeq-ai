@@ -47,7 +47,6 @@ wheels/
 *.egg-info
 Backend/uploads/*
 backend/tests/evaluation/*
-Backend/tests/evaluation/*
 
 # Virtual environments
 .venv
