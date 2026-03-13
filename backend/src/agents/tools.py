@@ -53,12 +53,15 @@ class TrackedChatOpenAI(ChatOpenAI):
 def _llm(model: str, temperature: float = 0) -> ChatOpenAI:
     if not GROQ_API_KEY:
         raise RuntimeError("GROQ_API_KEY is not set. Add it to backend/secrets")
-    # Route via our local LiteLLM proxy container
+    # Route via Helicone Gateway for Groq
     return TrackedChatOpenAI(
-        api_key=os.environ.get("LITELLM_MASTER_KEY"), 
+        api_key=GROQ_API_KEY, 
         model=model, 
         temperature=temperature,
-        base_url="http://litellm:4000/v1"
+        base_url="https://groq.hconeai.com/openai/v1",
+        default_headers={
+            "Helicone-Auth": f"Bearer {os.environ.get('HELICONE_API_KEY')}"
+        }
     )
 
 async def _tavily_search(queries: List[str]) -> str:
