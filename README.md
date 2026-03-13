@@ -1,6 +1,15 @@
 # SAI — AI Research Assistant 🚀
 > **An Enterprise-Grade, Hinglish Voice-Native Generative AI Agent**
 
+<div align="center">
+  <h3>✨ Try It Live! ✨</h3>
+  <p>Experience the future of voice-native AI interaction right now in your browser.</p>
+  <a href="https://sai.shafeeq.dev">
+    <img src="https://img.shields.io/badge/Launch_Live_Demo-FF4B4B?style=for-the-badge&logo=rocket&logoColor=white" alt="Launch Live Demo" />
+  </a>
+</div>
+<br>
+
 [![GPT-OSS-20B](https://img.shields.io/badge/LLM-GPT--OSS_20B-green?style=for-the-badge)](https://groq.com/)
 [![GPT-OSS-120B](https://img.shields.io/badge/LLM-GPT--OSS_120B-blue?style=for-the-badge)](https://groq.com/)
 [![Sarvam AI](https://img.shields.io/badge/Voice-Sarvam_AI-FF9900?style=for-the-badge)](https://sarvam.ai/)
