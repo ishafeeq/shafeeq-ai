@@ -182,8 +182,11 @@ async def stream_synthesize(state: dict):
 
     from openai import AsyncOpenAI
     client = AsyncOpenAI(
-        api_key=os.environ.get("LITELLM_MASTER_KEY"), 
-        base_url="http://litellm:4000/v1"
+        api_key=GROQ_API_KEY, 
+        base_url="https://groq.hconeai.com/openai/v1",
+        default_headers={
+            "Helicone-Auth": f"Bearer {os.environ.get('HELICONE_API_KEY')}"
+        }
     )
     
     # Format messages for native OpenAI API
