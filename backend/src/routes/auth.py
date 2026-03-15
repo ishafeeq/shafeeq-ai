@@ -3,11 +3,18 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import requests
 import os
+import logging
 
 from .. import models, schemas, auth, database
 
 router = APIRouter(tags=["Authentication"])
-OTP_AUTH_KEY = os.environ["OTP_AUTH_KEY"]
+logger = logging.getLogger(__name__)
+
+OTP_AUTH_KEY = os.environ.get("OTP_AUTH_KEY", "").strip()
+if not OTP_AUTH_KEY:
+    logger.error("CRITICAL: OTP_AUTH_KEY is not set in environment!")
+else:
+    pass
 
 @router.post("/verify-otp", response_model=schemas.Token)
 def verify_otp(request: schemas.OTPVerify, db: Session = Depends(database.get_db)):
@@ -77,13 +84,20 @@ def verify_otp_tok(request: schemas.Msg91Token, db: Session = Depends(database.g
         "access-token": request.token
     }
     
-    response = requests.post(url, json=payload, headers=headers)
+    pass
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+    except Exception as e:
+        logging.error(f"ERROR: Msg91 request failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error during verification")
+
     if response.status_code != 200:
-        raise HTTPException(status_code=400, detail="Invalid auth provider token")
+        raise HTTPException(status_code=400, detail=f"Auth provider returned {response.status_code}: {response.text}")
         
     data = response.json()
     if data.get("type") != "success":
-        raise HTTPException(status_code=400, detail="Verification failed")
+        raise HTTPException(status_code=400, detail=data.get("message", "Verification failed"))
         
     mobile_number = data.get("message")
     if not mobile_number:

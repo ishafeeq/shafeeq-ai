@@ -9,16 +9,18 @@ from .database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# LiteLLM proxy URL for embeddings
-LITELLM_URL = "http://litellm:4000/v1"
+
 
 class SemanticCacheManager:
     def __init__(self, threshold: float = 0.95):
         self.threshold = threshold
         self.embeddings = OpenAIEmbeddings(
             model="openrouter/embedding", 
-            openai_api_key=os.environ.get("LITELLM_MASTER_KEY"),
-            openai_api_base=LITELLM_URL
+            openai_api_key=os.environ.get("OPENROUTER_API_KEY"),
+            openai_api_base="https://openrouter.hconeai.com/api/v1",
+            default_headers={
+                "Helicone-Auth": f"Bearer {os.environ.get('HELICONE_API_KEY')}"
+            }
         )
 
     def get_cached_response(self, query: str, model: str) -> Optional[str]:

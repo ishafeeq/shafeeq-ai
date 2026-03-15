@@ -510,6 +510,7 @@ const SAIScreen = ({ lang, showSidebar, setShowSidebar, setShowAuthModal }: SAIS
 
 // ─── App Root ─────────────────────────────────────────────────────────────────
 function AppContent() {
+  const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [lang, setLang] = useState<Lang>('hi-en');
@@ -566,8 +567,8 @@ function AppContent() {
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
 
-      {/* Global Auth Modal */}
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      {/* Global Auth Modal - only for unauthenticated users */}
+      {!user && <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />}
     </div>
   );
 }

@@ -44,7 +44,7 @@ REQUIRED_ENV_VARS = [
     "TAVILY_API_KEY", 
     "GROQ_API_KEY",
     "OTP_AUTH_KEY",
-    "LITELLM_MASTER_KEY"
+    "HELICONE_API_KEY"
 ]
 
 for var in REQUIRED_ENV_VARS:
@@ -92,6 +92,26 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.include_router(auth.router)
 from .routes import chat
 app.include_router(chat.router)
+
+@app.get("/config")
+async def get_config():
+    widget_id = "YOUR_WIDGET_ID_HERE"
+    token_auth = "YOUR_TOKEN_AUTH_HERE"
+    
+    widget_id_path = "/run/secrets/bol_msg91_widget_id"
+    if os.path.exists(widget_id_path):
+        with open(widget_id_path, "r") as f:
+            widget_id = f.read().strip()
+            
+    token_auth_path = "/run/secrets/bol_msg91_token_auth"
+    if os.path.exists(token_auth_path):
+        with open(token_auth_path, "r") as f:
+            token_auth = f.read().strip()
+            
+    return {
+        "msg91_widget_id": widget_id,
+        "msg91_token_auth": token_auth
+    }
 
 @app.get("/")
 async def root():
